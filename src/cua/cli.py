@@ -10,9 +10,10 @@ from typing import Any
 import typer
 import yaml
 
-from cua.control import ApprovalRequest, ControlPort, InMemoryControl
+from cua.control import ControlPort, InMemoryControl, OperatorDesk
 from cua.discovery import ClaudePlanner, Goal, discover
 from cua.evidence import RunLog
+from cua.operator import serve_console
 from cua.policy import Mode, Policy, Redactor
 from cua.replay import replay as run_replay
 from cua.schema import Capability, Risk, RunResult, Status
@@ -27,6 +28,9 @@ CATALOG = Path("catalog")
 EVIDENCE = Path("evidence")
 BASE_URL = typer.Option("http://127.0.0.1:8001", help="Tenant base URL (allowlisted origin)")
 HEADED = typer.Option(False, help="Show the browser window")
+OPERATOR = typer.Option(
+    "unattended", help="unattended: fail closed (reject approvals, abort handoffs); "
+                       "console: a human decides in the web console (forces --headed)")
 
 
 def load_dotenv(path: Path = Path(".env")) -> None:
@@ -53,6 +57,18 @@ def open_session(store: Store, app_id: str, base_url: str, *, mode: Mode,
             capability_status=status))
 
 
+def operator_control(mode: str) -> tuple[ControlPort, bool]:
+    """(control port, whether the browser must be headed)."""
+    if mode == "unattended":
+        return InMemoryControl(), False
+    if mode == "console":
+        desk = OperatorDesk()
+        url = serve_console(desk, EVIDENCE)
+        typer.echo(f"operator console: {url} (hand-offs happen in the browser window)")
+        return desk, True
+    raise typer.BadParameter(f"unknown operator mode {mode!r}")
+
+
 def verification_control() -> InMemoryControl:
     """Verifying a draft: its reversible steps were just performed during discovery, so they
     are approved; irreversible steps never are (verification must not commit anything)."""
@@ -66,14 +82,16 @@ def show(result: RunResult) -> None:
 @app.command(name="discover")
 def discover_command(
     goal_file: Path, base_url: str = BASE_URL, headed: bool = HEADED,
+    operator: str = OPERATOR,
     model: str = typer.Option("claude-opus-5", help="Claude model id"),
 ) -> None:
     """Run LLM discovery on a goal, verify the draft by replaying it, and save it."""
     load_dotenv()
     store = Store(CATALOG)
     goal = Goal.model_validate(yaml.safe_load(goal_file.read_text()))
+    control, needs_window = operator_control(operator)
     with open_session(store, goal.app, base_url, mode=Mode.DISCOVERY, status=None,
-                      control=InMemoryControl(), headed=headed) as session:
+                      control=control, headed=headed or needs_window) as session:
         result = discover(goal, session, ClaudePlanner(model=model))
         typer.echo(f"discovery: {result.status} ({result.reason}) in {result.turns} turns; "
                    f"usage {result.usage}; evidence {session.log.dir}")
@@ -98,22 +116,17 @@ def discover_command(
 def replay(
     capability_id: str, params: str = typer.Option("{}", help="JSON object of inputs"),
     version: str | None = None, base_url: str = BASE_URL, headed: bool = HEADED,
-    approve: bool = typer.Option(False, help="Approve steps that need a human (unattended)"),
+    operator: str = OPERATOR,
 ) -> None:
     """Replay a saved capability deterministically with JSON params."""
     load_dotenv()
     store = Store(CATALOG)
     capability: Capability = store.load(capability_id, version)
-
-    def decide(request: ApprovalRequest) -> bool:
-        typer.echo(f"approval requested: {request.action} ({request.risk}): "
-                   f"{'approved' if approve else 'rejected'}")
-        return approve
-
     inputs: dict[str, Any] = json.loads(params)
+    control, needs_window = operator_control(operator)
     with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
-                      status=capability.status, control=InMemoryControl(approve=decide),
-                      headed=headed) as session:
+                      status=capability.status, control=control,
+                      headed=headed or needs_window) as session:
         result = run_replay(capability, inputs, session)
     show(result)
     if result.kind != "success":

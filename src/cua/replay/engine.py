@@ -27,7 +27,6 @@ from cua.schema import (
     Failure,
     FailureCategory,
     Fill,
-    Intervention,
     Navigate,
     RecoveryRecord,
     Risk,
@@ -49,6 +48,7 @@ from cua.session import (
     ApprovalRejected,
     Command,
     GuardedSession,
+    InterventionAborted,
     LeaseLost,
     PolicyDenied,
     SessionError,
@@ -108,7 +108,7 @@ class Replayer:
         self._outputs: dict[str, OutputValue] = {}
         self._recoveries: list[RecoveryRecord] = []
         self._recovery_counts: Counter[str] = Counter()
-        self._interventions: list[Intervention] = []
+        self._interventions_before = len(session.interventions)
         self._drift: list[DriftSignal] = []
         self._committed: list[str] = []
         self._step: Step | None = None
@@ -299,7 +299,6 @@ class Replayer:
 
     def _escalate(self, reason: str) -> None:
         intervention = self.session.request_intervention(reason, self._step_id)
-        self._interventions.append(intervention)
         if intervention.resolution == "aborted":
             raise _Stop(Aborted, step_id=self._step_id, reason=f"operator aborted: {reason}")
 
@@ -312,6 +311,8 @@ class Replayer:
             case LeaseLost():
                 return self._result(Aborted, step_id=self._step_id,
                                     reason="an operator took control of the session")
+            case InterventionAborted():
+                return self._result(Aborted, step_id=self._step_id, reason=str(e))
             case PolicyDenied():
                 expected = f"the action to be permitted (rule {e.rule})"
             case TargetError():
@@ -338,7 +339,8 @@ class Replayer:
             started_at=self._started_at,
             finished_at=datetime.now(UTC),
             recoveries=list(self._recoveries),
-            interventions=list(self._interventions),
+            # every handoff in this run, including pauses an operator asked for
+            interventions=self.session.interventions[self._interventions_before:],
             drift=list(self._drift),
             committed_steps=list(self._committed),
             evidence_ref=str(self.log.dir),

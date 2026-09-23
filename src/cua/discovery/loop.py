@@ -30,6 +30,7 @@ from cua.session import (
     ApprovalRejected,
     Command,
     GuardedSession,
+    InterventionAborted,
     LeaseLost,
     PolicyDenied,
     Ref,
@@ -203,6 +204,8 @@ class DiscoveryLoop:
             report = self.session.execute(cmd)
         except LeaseLost:
             return _Outcome(terminal=DiscoveryResult("aborted", "an operator took control"))
+        except InterventionAborted as e:
+            return _Outcome(terminal=DiscoveryResult("aborted", str(e)))
         except (PolicyDenied, ApprovalRejected, TargetError, ActionFailed) as e:
             obs = self.session.observe()
             self.state = classify(self.app, obs).state

@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-from cua.schema import ElementInfo, Observation, Target
+from cua.schema import ElementInfo, HumanAction, Observation, Target
 
 
 @dataclass(frozen=True)
@@ -73,3 +73,10 @@ class Surface(Protocol):
     def press(self, key: str, el: Resolved | None = None) -> None: ...
 
     def read_text(self, el: Resolved) -> str: ...
+
+    def start_capture(self) -> None:
+        """Begin recording what a human does on the surface (during a handoff only, so the
+        engine's own actions are never attributed to a person)."""
+
+    def drain_captured(self) -> list[HumanAction]:
+        """Stop recording and return the human's actions (password values masked)."""

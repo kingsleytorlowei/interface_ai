@@ -32,6 +32,7 @@ from cua.schema import (
     Extract,
     FailureCategory,
     Fill,
+    HumanAction,
     Intervention,
     Navigate,
     Observation,
@@ -70,6 +71,12 @@ class ApprovalRejected(SessionError):
 
 
 class LeaseLost(SessionError):
+    category = None
+
+
+class InterventionAborted(SessionError):
+    """An operator paused the run, took the session, and chose to end it."""
+
     category = None
 
 
@@ -166,7 +173,8 @@ class GuardedSession:
         self._token: LeaseToken | None = None
         self._actions = 0
         self._irreversible = 0
-        self._interventions = 0
+        self._approvals = 0
+        self.interventions: list[Intervention] = []  # every handoff in this session, in order
         self._frozen: str | None = None
         self._last_digest: str | None = None
         self.signed_on = False
@@ -233,6 +241,10 @@ class GuardedSession:
         step = cmd.step_id
         if self._frozen:
             raise PolicyDenied(f"session is frozen: {self._frozen}", "frozen")
+        if actor is Actor.AGENT and self._control.consume_pause():
+            intervention = self.request_intervention("an operator asked to pause", step)
+            if intervention.resolution == "aborted":
+                raise InterventionAborted(f"operator ended the run while paused at {step}")
         if cmd.sensitivity.masked_in_logs and isinstance(cmd.action, Fill | Select):
             value = cmd.action.value if isinstance(cmd.action, Fill) else cmd.action.option
             self.mark_sensitive(value, cmd.action.target)
@@ -350,12 +362,15 @@ class GuardedSession:
     def _await_approval(
         self, cmd: Command, decision: Decision, element: ElementInfo | None
     ) -> None:
+        self._approvals += 1
         request = ApprovalRequest(
             run_id=self.run_id,
             step_id=cmd.step_id,
             action=self.log.redactor.scrub(_describe(cmd.action, element)),
             risk=decision.risk,
             reason=decision.reason,
+            id=f"{self.run_id}-ap{self._approvals}",
+            evidence_ref=self._evidence_ref(self.capture("approval", cmd.step_id)),
         )
         self.log.emit(EventKind.APPROVAL_REQUESTED, cmd.step_id, action=request.action,
                       risk=request.risk, reason=request.reason)
@@ -381,32 +396,29 @@ class GuardedSession:
     def request_intervention(self, reason: str, step_id: str | None = None) -> Intervention:
         """Hand the live session to a human and block until they resume or abort. After a
         resume the agent holds a fresh lease; refs from before the handoff are stale."""
-        self._interventions += 1
         request = InterventionRequest(
-            id=f"{self.run_id}-iv{self._interventions}",
+            id=f"{self.run_id}-iv{len(self.interventions) + 1}",
             run_id=self.run_id,
             step_id=step_id,
             reason=self.log.redactor.scrub(reason),
+            evidence_ref=self._evidence_ref(self.capture("intervention", step_id)),
         )
         requested_at = datetime.now(UTC)
         self.log.emit(EventKind.INTERVENTION_REQUESTED, step_id, id=request.id,
-                      reason=request.reason)
-        self.capture("intervention", step_id)
-        resolution = self._control.request_intervention(request, self._intervention_timeout_s)
-        scrub = self.log.redactor.scrub
-        actions = [
-            a.model_copy(update={
-                "target_description": scrub(a.target_description),
-                "value": scrub(a.value) if a.value is not None else None,
-            })
-            for a in resolution.actions
-        ]
+                      reason=request.reason, evidence_ref=request.evidence_ref)
+        self._surface.start_capture()
+        try:
+            resolution = self._control.request_intervention(request,
+                                                            self._intervention_timeout_s)
+        finally:
+            captured = self._surface.drain_captured()
+        actions = [self._redact_human(a) for a in [*captured, *resolution.actions]]
         if resolution.outcome == "resumed":
             self._acquire()
         self.log.emit(EventKind.INTERVENTION_RESOLVED, step_id, id=request.id,
                       outcome=resolution.outcome, operator=resolution.operator,
                       actions=actions, note=resolution.note)
-        return Intervention(
+        intervention = Intervention(
             id=request.id,
             step_id=step_id,
             reason=request.reason,
@@ -416,6 +428,24 @@ class GuardedSession:
             requested_at=requested_at,
             resolved_at=datetime.now(UTC),
         )
+        self.interventions.append(intervention)
+        return intervention
+
+    def _redact_human(self, action: HumanAction) -> HumanAction:
+        """What a person typed may be anything (unregistered PII included): keep that a field
+        was filled and how long the entry was, not the text. Dropdown choices come from a fixed
+        list and are kept."""
+        value = action.value
+        if action.kind == "fill" and value is not None and value != "***":
+            value = f"«{len(value)} characters»"
+        scrub = self.log.redactor.scrub
+        return action.model_copy(update={
+            "target_description": scrub(action.target_description),
+            "value": scrub(value) if value is not None else None,
+        })
+
+    def _evidence_ref(self, snapshot: str | None) -> str | None:
+        return f"{self.run_id}/{snapshot}" if snapshot else None
 
     # sign-on ----------------------------------------------------------------------------
 

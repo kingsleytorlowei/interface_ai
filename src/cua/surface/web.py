@@ -14,6 +14,7 @@ import re
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -21,7 +22,7 @@ import yaml
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 
-from cua.schema import ElementInfo, Observation, Target, UINode
+from cua.schema import ElementInfo, HumanAction, Observation, Target, UINode
 from cua.schema.targets import (
     ByCss,
     ByLabel,
@@ -94,6 +95,56 @@ _ATTRS_JS = """e => ({
   type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text').toLowerCase() : null,
   href: e.tagName === 'A' && e.hasAttribute('href') ? e.href : null,
 })"""
+
+# Installed into every frame at launch. Records human clicks and field changes into
+# sessionStorage (it survives the form posts that navigate a frame), but only while the
+# capture flag is set, i.e. while the engine has handed the session to a person.
+_CAPTURE_JS = """(() => {
+  if (window.__cuaCapture) return;
+  window.__cuaCapture = true;
+  const norm = s => (s || '').replace(/\\s+/g, ' ').trim().slice(0, 80);
+  const roleOf = (el, tag, type) => el.getAttribute('role') || (
+    tag === 'a' ? 'link' : tag === 'select' ? 'combobox' :
+    (tag === 'button' || ['submit', 'button', 'reset'].includes(type)) ? 'button' :
+    (tag === 'input' || tag === 'textarea') ? 'textbox' : tag);
+  const describe = el => {
+    const tag = el.tagName.toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const name = el.getAttribute('aria-label')
+      || (tag === 'input' && ['submit', 'button'].includes(type) ? el.value : '')
+      || (el.labels && el.labels[0] ? el.labels[0].innerText : '')
+      || (['input', 'select', 'textarea'].includes(tag) ? '' : el.innerText)
+      || el.getAttribute('name') || '';
+    return `${roleOf(el, tag, type)} "${norm(name)}"`;
+  };
+  const record = (kind, el, value) => {
+    try {
+      if (sessionStorage.getItem('cua.capture') !== '1') return;
+      const list = JSON.parse(sessionStorage.getItem('cua.captured') || '[]');
+      list.push({kind, target: describe(el), value, at: Date.now()});
+      sessionStorage.setItem('cua.captured', JSON.stringify(list));
+    } catch (e) {}
+  };
+  const FIELD = 'input:not([type]),input[type=text],input[type=password],textarea,select';
+  document.addEventListener('click', e => {
+    const el = e.target.closest('a,button,input,select,textarea,[role]') || e.target;
+    if (!el.matches(FIELD)) record('click', el, null);  // a field's change is the action
+  }, true);
+  document.addEventListener('change', e => {
+    const el = e.target;
+    if (!el.matches || !el.matches(FIELD)) return;
+    const secret = (el.getAttribute('type') || '').toLowerCase() === 'password';
+    const value = secret ? '***'
+      : el.tagName === 'SELECT' ? (el.options[el.selectedIndex] || {}).text : el.value;
+    record(el.tagName === 'SELECT' ? 'select' : 'fill', el, value);
+  }, true);
+})()"""
+
+_CAPTURE_START = """() => { sessionStorage.setItem('cua.captured', '[]');
+  sessionStorage.setItem('cua.capture', '1'); }"""
+_CAPTURE_DRAIN = """() => { const list = JSON.parse(sessionStorage.getItem('cua.captured') || '[]');
+  sessionStorage.removeItem('cua.captured'); sessionStorage.removeItem('cua.capture');
+  return list; }"""
 
 _BODY_TEXT = "() => document.body ? document.body.innerText : ''"
 
@@ -203,6 +254,7 @@ class WebSurface:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=headless)
             context = browser.new_context(viewport={"width": 1280, "height": 800})
+            context.add_init_script(_CAPTURE_JS)
             try:
                 yield cls(context.new_page())
             finally:
@@ -476,6 +528,23 @@ class WebSurface:
         else:
             el.handle.press(key)
         self._activity()
+
+    # human capture ----------------------------------------------------------------------
+    # Same-origin frames share one sessionStorage, so the main frame is enough here.
+
+    def start_capture(self) -> None:
+        self.page.main_frame.evaluate(_CAPTURE_START)
+
+    def drain_captured(self) -> list[HumanAction]:
+        try:
+            raw = self.page.main_frame.evaluate(_CAPTURE_DRAIN)
+        except PlaywrightError:
+            return []
+        return [
+            HumanAction(kind=a["kind"], target_description=a["target"], value=a.get("value"),
+                        at=datetime.fromtimestamp(a["at"] / 1000, UTC))
+            for a in raw
+        ]
 
     def read_text(self, el: Resolved) -> str:
         return " ".join(el.handle.inner_text().split())
