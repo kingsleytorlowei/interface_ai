@@ -67,6 +67,8 @@ name = "only the session touches the surface"
 type = "forbidden"
 source_modules = ["cua.discovery", "cua.replay", "cua.operator"]
 forbidden_modules = ["cua.surface", "playwright"]
+# Drivers reach the surface only *through* the session; direct imports are what's forbidden.
+allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "replay is deterministic: no LLM"

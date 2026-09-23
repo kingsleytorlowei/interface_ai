@@ -88,6 +88,10 @@ class TargetError(SessionError):
 class ActionFailed(SessionError):
     category = FailureCategory.APP_ERROR
 
+    def __init__(self, message: str, risk: Risk) -> None:
+        super().__init__(message)
+        self.risk = risk  # the attempt may have taken effect before it failed
+
 
 class SignOnFailed(SessionError):
     category = FailureCategory.APP_ERROR
@@ -164,6 +168,8 @@ class GuardedSession:
         self._irreversible = 0
         self._interventions = 0
         self._frozen: str | None = None
+        self._last_digest: str | None = None
+        self.signed_on = False
 
     @classmethod
     @contextmanager
@@ -191,10 +197,14 @@ class GuardedSession:
 
     # perception -------------------------------------------------------------------------
 
-    def observe(self) -> Observation:
+    def observe(self, *, quiet: bool = False) -> Observation:
+        """`quiet` logs the observation only if the screen changed (for polling loops)."""
         obs = self._surface.observe()
-        self.log.emit(EventKind.OBSERVATION, url=obs.url, title=obs.title,
-                      frames=obs.frame_urls, snapshot=snapshot_digest(obs))
+        digest = snapshot_digest(obs)
+        if not quiet or digest != self._last_digest:
+            self.log.emit(EventKind.OBSERVATION, url=obs.url, title=obs.title,
+                          frames=obs.frame_urls, snapshot=digest)
+        self._last_digest = digest
         return obs
 
     def capture(self, label: str, step_id: str | None = None) -> str | None:
@@ -264,7 +274,7 @@ class GuardedSession:
             self.log.emit(EventKind.ACTION_FAILED, step, stage="act",
                           error=f"{type(e).__name__}: {e}")
             self.capture("act-failed", step)
-            raise ActionFailed(f"{cmd.action.kind} failed: {e}") from e
+            raise ActionFailed(f"{cmd.action.kind} failed: {e}", decision.risk) from e
 
         after = self.observe()
         if violation := self._off_allowlist(after):
@@ -435,6 +445,7 @@ class GuardedSession:
         if not all(predicate_holds(p, report.after) for p in spec.success):
             self.capture("sign-on-failed", step)
             raise SignOnFailed("sign-on did not reach the expected screen")
+        self.signed_on = True
         self.log.emit(EventKind.SIGNED_ON, step)
 
 

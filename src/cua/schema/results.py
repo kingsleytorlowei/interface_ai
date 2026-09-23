@@ -61,6 +61,9 @@ class _ResultBase(Model):
     recoveries: list[RecoveryRecord] = []
     interventions: list[Intervention] = []
     drift: list[DriftSignal] = []
+    # Steps whose side effect may have taken place. Non-empty means re-invoking could repeat
+    # them: the caller must reconcile, not blindly retry.
+    committed_steps: list[str] = []
     evidence_ref: str
 
 
@@ -85,6 +88,7 @@ class FailureCategory(StrEnum):
     RECOVERY_EXHAUSTED = "recovery_exhausted"
     TIMEOUT = "timeout"
     APP_ERROR = "app_error"
+    OUTPUT_INVALID = "output_invalid"  # extracted text doesn't parse as the declared type
 
 
 class Failure(_ResultBase):

@@ -70,6 +70,14 @@
       },
       "precedence": 20
     },
+    "signed_out": {
+      "description": "Sign-on screen with no session (e.g. a redirect after the session ended)",
+      "match": [{"kind": "text", "text": "Teller Sign On"}],
+      "kind": "interstitial",
+      "recovery": {"kind": "reauthenticate"},
+      "max_recoveries": 1,
+      "precedence": 25
+    },
     "session_expired": {
       "description": "Session timed out; sign-on screen shown",
       "match": [{"kind": "text", "text": "Your session has expired"}],

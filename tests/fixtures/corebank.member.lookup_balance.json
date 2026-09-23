@@ -1,0 +1,62 @@
+{
+  "schema_version": "1",
+  "id": "corebank.member.lookup_balance",
+  "version": "1.0.0",
+  "status": "approved",
+  "description": "Look up a member's name and Share Savings balance by member number.",
+  "app": {"app_id": "corebank", "surface": "web", "compat": "7.2.x"},
+  "risk": "read_only",
+  "entry": {"url": "{{env.base_url}}/main.html", "requires_session": true},
+  "inputs": {
+    "member_id": {"type": "string", "description": "5-digit member number", "sensitivity": "pii", "pattern": "^\\d{5}$"}
+  },
+  "outputs": {
+    "member_name": {"type": "string", "description": "Member's full name", "sensitivity": "pii"},
+    "share_savings_balance": {"type": "money", "description": "Share Savings balance", "sensitivity": "confidential"}
+  },
+  "outcomes": {
+    "member_not_found": {"description": "No member with that number", "when_state": "no_results"},
+    "access_denied": {"description": "Teller lacks permission for this member", "when_state": "access_denied"}
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [{"name": "content"}],
+      "strategies": [
+        {"by": "near", "text": "Member ID", "direction": "right", "role": "textbox"},
+        {"by": "css", "selector": "input[name=\"mbrno\"]"}
+      ],
+      "fingerprint": {"role": "textbox", "tag": "input"}
+    },
+    "search_button": {
+      "frame": [{"name": "content"}],
+      "strategies": [
+        {"by": "role", "role": "button", "name": "Search"},
+        {"by": "css", "selector": "input[type=\"submit\"]"}
+      ]
+    },
+    "member_name": {
+      "frame": [{"name": "content"}],
+      "strategies": [{"by": "near", "text": "Name:", "direction": "right", "role": "cell"}],
+      "fingerprint": {"role": "cell", "tag": "td"}
+    },
+    "share_savings_balance": {
+      "frame": [{"name": "content"}],
+      "strategies": [{"by": "table_cell", "row_has_text": "Share Savings", "column": "Balance"}],
+      "fingerprint": {"role": "cell", "tag": "td"}
+    }
+  },
+  "steps": [
+    {"id": "enter_member_id", "intent": "Enter the member number", "risk": "read_only",
+     "action": {"kind": "fill", "target": "member_id_field", "value": "{{inputs.member_id}}"},
+     "expect": {"state": "member_search"}},
+    {"id": "search", "intent": "Search for the member", "risk": "read_only",
+     "action": {"kind": "click", "target": "search_button"},
+     "expect": {"state": "member_detail"}},
+    {"id": "read_member_name", "intent": "Read the member's name", "risk": "read_only",
+     "action": {"kind": "extract", "target": "member_name", "into": "member_name"}},
+    {"id": "read_balance", "intent": "Read the Share Savings balance", "risk": "read_only",
+     "action": {"kind": "extract", "target": "share_savings_balance", "into": "share_savings_balance"}}
+  ],
+  "success": {"state": "member_detail", "outputs_present": ["member_name", "share_savings_balance"]},
+  "provenance": {"run_id": "hand-written", "model": "none", "recorded_at": "2026-09-23T00:00:00Z", "reviewed_by": "test-fixture"}
+}

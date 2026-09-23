@@ -229,7 +229,7 @@ class WebSurface:
     def _frames_ready(self) -> bool:
         try:
             return all(f.evaluate("() => document.readyState") == "complete"
-                       for f in self.page.frames)
+                       for f in self._frames())
         except PlaywrightError:
             return False  # a frame is mid-navigation
 
@@ -238,7 +238,7 @@ class WebSurface:
             self.settle()
             try:
                 snapshot = self.page.aria_snapshot(mode="ai")
-                text = "\n".join(f.evaluate(_BODY_TEXT) for f in self.page.frames)
+                text = "\n".join(f.evaluate(_BODY_TEXT) for f in self._frames())
                 break
             except PlaywrightError:
                 if attempt == 2:
@@ -246,7 +246,7 @@ class WebSurface:
         self._last_obs = Observation(
             url=self.page.url,
             title=self.page.title(),
-            frame_urls=[f.url for f in self.page.frames[1:]],
+            frame_urls=[f.url for f in self._frames()[1:]],
             text=text,
             tree=parse_snapshot(snapshot),
             snapshot=snapshot,
@@ -254,7 +254,7 @@ class WebSurface:
         return self._last_obs
 
     def screenshot(self) -> bytes:
-        masks = [f.locator("input[type=password]") for f in self.page.frames]
+        masks = [f.locator("input[type=password]") for f in self._frames()]
         return self.page.screenshot(mask=masks)
 
     def navigate(self, url: str) -> None:
@@ -262,6 +262,11 @@ class WebSurface:
         self.settle()
 
     # frames -----------------------------------------------------------------------------
+
+    def _frames(self) -> list[Frame]:
+        """Live frames, main frame first. Playwright keeps frames detached by a reload of the
+        frameset in its lists; they must never be matched, read or waited on."""
+        return [f for f in self.page.frames if not f.is_detached()]
 
     @staticmethod
     def _frame_path(frame: Frame) -> list[FrameSelector]:
@@ -287,7 +292,8 @@ class WebSurface:
     def _find_frame(self, path: list[FrameSelector]) -> Frame:
         frame = self.page.main_frame
         for sel in path:
-            matches = [c for c in frame.child_frames if self._frame_matches(c, sel)]
+            matches = [c for c in frame.child_frames
+                       if not c.is_detached() and self._frame_matches(c, sel)]
             if len(matches) != 1:
                 raise ResolutionError(
                     "frame_not_found", f"{len(matches)} frames match {sel.model_dump()}"
