@@ -1,0 +1,23 @@
+# Discovery goal: what a human asks for. The typed contract (inputs, outputs) is decided
+# here; the model finds where it lives in the UI.
+capability_id: corebank.member.lookup_balance
+goal: Look up a member by member number and read their name and Share Savings balance.
+app: corebank
+entry: "{{env.base_url}}/main.html"
+inputs:
+  member_id:
+    type: string
+    description: 5-digit member number
+    sensitivity: pii
+    pattern: '^\d{5}$'
+    example: "12345"
+outputs:
+  member_name:
+    type: string
+    description: The member's full name
+    sensitivity: pii
+  share_savings_balance:
+    type: money
+    description: Balance of the member's Share Savings account
+    sensitivity: confidential
+max_turns: 25
