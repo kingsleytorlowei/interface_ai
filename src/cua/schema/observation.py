@@ -23,6 +23,16 @@ class UINode(Model):
             yield from child.walk()
 
 
+class ElementInfo(Model):
+    """What an operator would see of one resolved element; what policy judges an action by."""
+
+    role: str
+    name: str = ""
+    tag: str | None = None
+    input_type: str | None = None
+    href: str | None = None  # absolute, for links
+
+
 class Observation(Model):
     url: str
     title: str

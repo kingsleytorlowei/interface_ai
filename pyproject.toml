@@ -88,6 +88,24 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "policy is pure decisions: no I/O, no surface, no LLM"
+type = "forbidden"
+source_modules = ["cua.policy"]
+forbidden_modules = [
+    "cua.surface", "cua.session", "cua.control", "cua.evidence", "cua.store", "cua.apps",
+    "cua.discovery", "cua.replay", "cua.operator", "cua.cli", "playwright", "anthropic",
+]
+
+[[tool.importlinter.contracts]]
+name = "control and evidence know nothing about the surface or drivers"
+type = "forbidden"
+source_modules = ["cua.control", "cua.evidence", "cua.secrets"]
+forbidden_modules = [
+    "cua.surface", "cua.session", "cua.discovery", "cua.replay", "cua.operator",
+    "playwright", "anthropic",
+]
+
+[[tool.importlinter.contracts]]
 name = "the engine never imports the target app"
 type = "forbidden"
 source_modules = ["cua"]

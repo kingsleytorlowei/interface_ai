@@ -21,7 +21,7 @@ import yaml
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 
-from cua.schema import Observation, Target, UINode
+from cua.schema import ElementInfo, Observation, Target, UINode
 from cua.schema.targets import (
     ByCss,
     ByLabel,
@@ -88,6 +88,12 @@ def _parse_item(item: Any) -> UINode | None:
 _NORM = "const norm = s => (s || '').replace(/\\s+/g, ' ').trim();"
 # A label worth anchoring on: short, has letters, no digits (digits usually mean data).
 _STABLE = "const stable = t => t.length > 0 && t.length <= 40 && /[A-Za-z]/.test(t) && !/\\d/.test(t);"
+
+_ATTRS_JS = """e => ({
+  tag: e.tagName.toLowerCase(),
+  type: e.tagName === 'INPUT' ? (e.getAttribute('type') || 'text').toLowerCase() : null,
+  href: e.tagName === 'A' && e.hasAttribute('href') ? e.href : null,
+})"""
 
 _BODY_TEXT = "() => document.body ? document.body.innerText : ''"
 
@@ -248,7 +254,8 @@ class WebSurface:
         return self._last_obs
 
     def screenshot(self) -> bytes:
-        return self.page.screenshot()
+        masks = [f.locator("input[type=password]") for f in self.page.frames]
+        return self.page.screenshot(mask=masks)
 
     def navigate(self, url: str) -> None:
         self.page.goto(url)
@@ -354,6 +361,17 @@ class WebSurface:
             if time.monotonic() >= deadline:
                 raise ResolutionError("not_found", "no strategy matched", attempts)
             self.page.wait_for_timeout(200)
+
+    def describe(self, el: Resolved) -> ElementInfo:
+        nodes = parse_snapshot(el.handle.aria_snapshot(mode="ai"))
+        attrs = el.handle.evaluate(_ATTRS_JS)
+        return ElementInfo(
+            role=nodes[0].role if nodes else "",
+            name=nodes[0].name if nodes else "",
+            tag=attrs["tag"],
+            input_type=attrs["type"],
+            href=attrs["href"],
+        )
 
     def _check_fingerprint(
         self, loc: Locator, fp: Fingerprint | None, attempts: list[str]

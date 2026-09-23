@@ -1,6 +1,7 @@
 """Shared primitives for the artifact schema."""
 
 import re
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated
 
@@ -24,6 +25,20 @@ TEMPLATE_RE = re.compile(r"\{\{\s*(inputs|env)\.([a-z][a-z0-9_]*)\s*\}\}")
 
 def template_refs(text: str, namespace: str) -> set[str]:
     return {name for ns, name in TEMPLATE_RE.findall(text) if ns == namespace}
+
+
+def render_template(
+    text: str, *, inputs: Mapping[str, object] | None = None, env: Mapping[str, str] | None = None
+) -> str:
+    sources: dict[str, Mapping[str, object]] = {"inputs": inputs or {}, "env": env or {}}
+
+    def substitute(m: re.Match[str]) -> str:
+        ns, name = m.groups()
+        if name not in sources[ns]:
+            raise KeyError(f"template references {ns}.{name}, which was not provided")
+        return str(sources[ns][name])
+
+    return TEMPLATE_RE.sub(substitute, text)
 
 
 class Sensitivity(StrEnum):

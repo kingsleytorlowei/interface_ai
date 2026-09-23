@@ -3,6 +3,15 @@
   "app_id": "corebank",
   "version": "1.0.0",
   "description": "CoreOne Teller core-banking system (vendor product). State signatures use vendor-constant text, so they hold across tenant variants; tenant-specific labels live in capability targets.",
+  "sign_on": {
+    "url": "{{env.base_url}}/login",
+    "username": {"strategies": [{"by": "near", "text": "User ID", "direction": "right", "role": "textbox"}, {"by": "css", "selector": "input[name=\"userid\"]"}]},
+    "password": {"strategies": [{"by": "near", "text": "Password", "direction": "right", "role": "textbox"}, {"by": "css", "selector": "input[name=\"passwd\"]"}]},
+    "submit": {"strategies": [{"by": "role", "role": "button", "name": "Sign On"}]},
+    "username_secret": "env:COREBANK_USER",
+    "password_secret": "env:COREBANK_PASSWORD",
+    "success": [{"kind": "url_contains", "value": "/main.html"}]
+  },
   "states": {
     "member_search": {
       "description": "Member inquiry search form",

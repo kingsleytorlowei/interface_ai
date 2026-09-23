@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-from cua.schema import Observation, Target
+from cua.schema import ElementInfo, Observation, Target
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,8 @@ class Pinned:
 class Surface(Protocol):
     def observe(self) -> Observation: ...
 
-    def screenshot(self) -> bytes: ...
+    def screenshot(self) -> bytes:
+        """Capture the screen with sensitive inputs (e.g. passwords) masked."""
 
     def navigate(self, url: str) -> None: ...
 
@@ -59,6 +60,9 @@ class Surface(Protocol):
         resolve uniquely to that same element on the live surface."""
 
     def resolve(self, target: Target, timeout_ms: int = 5000) -> Resolved: ...
+
+    def describe(self, el: Resolved) -> ElementInfo:
+        """What an operator would see of a resolved element (what policy judges it by)."""
 
     def click(self, el: Resolved) -> None: ...
 

@@ -15,7 +15,7 @@ lookup capability).
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, StringConstraints, model_validator
 
 from .common import Model, SemVer, Slug
 from .targets import Target
@@ -110,10 +110,27 @@ class StateSignature(Model):
         return self
 
 
+SecretRef = Annotated[str, StringConstraints(pattern=r"^env:[A-Z][A-Z0-9_]*$")]
+
+
+class SignOn(Model):
+    """How the runtime establishes a session. Credentials are secret references resolved at run
+    time; their values never appear in artifacts, and the LLM never sees or types them."""
+
+    url: str  # template, e.g. "{{env.base_url}}/login"
+    username: Target
+    password: Target
+    submit: Target
+    username_secret: SecretRef
+    password_secret: SecretRef
+    success: list[Predicate] = Field(min_length=1)
+
+
 class AppModel(Model):
     schema_version: Literal["1"] = "1"
     app_id: Slug
     version: SemVer
     description: str = ""
+    sign_on: SignOn | None = None
     states: dict[Slug, StateSignature]
 

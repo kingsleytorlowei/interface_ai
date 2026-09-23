@@ -8,6 +8,7 @@ import httpx
 import pytest
 import uvicorn
 
+from cua.policy import PolicyConfig
 from cua.schema import AppModel
 from mock_bank.app import create_app
 
@@ -56,3 +57,8 @@ def bank(bank_servers: dict[str, str]) -> Callable[[str], str]:
 @pytest.fixture(scope="session")
 def corebank() -> AppModel:
     return AppModel.model_validate_json((CATALOG / "corebank" / "app.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def corebank_policy() -> PolicyConfig:
+    return PolicyConfig.model_validate_json((CATALOG / "corebank" / "policy.json").read_text())

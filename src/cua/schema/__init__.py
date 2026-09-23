@@ -27,8 +27,8 @@ from .capability import (
     SuccessCondition,
     check_against_app,
 )
-from .common import Risk, Sensitivity
-from .observation import Observation, UINode
+from .common import Risk, Sensitivity, render_template
+from .observation import ElementInfo, Observation, UINode
 from .results import (
     Aborted,
     BusinessOutcome,
@@ -41,15 +41,15 @@ from .results import (
     RunResult,
     Success,
 )
-from .states import AppModel, Predicate, Recovery, StateKind, StateSignature
+from .states import AppModel, Predicate, Recovery, SignOn, StateKind, StateSignature
 from .targets import Fingerprint, FrameSelector, Strategy, Target
 
 __all__ = [
     "Aborted", "Action", "AppModel", "AppRef", "BusinessOutcome", "Capability", "Checkpoint",
-    "Click", "DriftSignal", "Entry", "Extract", "Failure", "FailureCategory", "Fill",
-    "Fingerprint", "FrameSelector", "HumanAction", "InputSpec", "Intervention", "Navigate",
-    "Observation", "OutcomeSpec", "OutputSpec", "ParamType", "Predicate", "Press", "Provenance",
-    "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity", "StateKind",
-    "StateSignature", "Status", "Step", "Strategy", "Success", "SuccessCondition", "Target",
-    "UINode", "check_against_app",
+    "Click", "DriftSignal", "ElementInfo", "Entry", "Extract", "Failure", "FailureCategory",
+    "Fill", "Fingerprint", "FrameSelector", "HumanAction", "InputSpec", "Intervention",
+    "Navigate", "Observation", "OutcomeSpec", "OutputSpec", "ParamType", "Predicate", "Press",
+    "Provenance", "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity",
+    "SignOn", "StateKind", "StateSignature", "Status", "Step", "Strategy", "Success",
+    "SuccessCondition", "Target", "UINode", "check_against_app", "render_template",
 ]

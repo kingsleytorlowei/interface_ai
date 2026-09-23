@@ -1,0 +1,8 @@
+{
+  "schema_version": "1",
+  "app_id": "corebank",
+  "denied_paths": ["/__admin"],
+  "irreversible_patterns": [],
+  "max_actions": 200,
+  "max_irreversible": 1
+}
