@@ -1,0 +1,24 @@
+{
+  "run_id": "03a-recovery-session-expired",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:19.616863Z",
+  "finished_at": "2026-09-23T19:27:22.737186Z",
+  "recoveries": [
+    {
+      "step_id": null,
+      "state": "signed_out",
+      "recovery": "reauthenticate",
+      "attempt": 1
+    }
+  ],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/03a-recovery-session-expired",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_balance": "\u00abshare_savings_balance\u00bb"
+  }
+}

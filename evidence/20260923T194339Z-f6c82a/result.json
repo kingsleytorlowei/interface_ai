@@ -1,0 +1,42 @@
+{
+  "run_id": "20260923T194339Z-f6c82a",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:43:39.997084Z",
+  "finished_at": "2026-09-23T19:49:58.079950Z",
+  "recoveries": [
+    {
+      "step_id": "click_search_button",
+      "state": "member_alert",
+      "recovery": "escalate",
+      "attempt": 1
+    }
+  ],
+  "interventions": [
+    {
+      "id": "20260923T194339Z-f6c82a-iv1",
+      "step_id": "click_search_button",
+      "reason": "Member alert requiring identity confirmation. Deliberately NOT auto-dismissed: a person must read and act on it.",
+      "operator": "kingsley",
+      "actions": [
+        {
+          "kind": "click",
+          "target_description": "button \"Acknowledge\"",
+          "value": null,
+          "at": "2026-09-23T19:49:24.417000Z"
+        }
+      ],
+      "resolution": "resumed",
+      "requested_at": "2026-09-23T19:43:42.773112Z",
+      "resolved_at": "2026-09-23T19:49:57.630546Z"
+    }
+  ],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/20260923T194339Z-f6c82a",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_balance": "\u00abshare_savings_balance\u00bb"
+  }
+}

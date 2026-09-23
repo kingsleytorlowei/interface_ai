@@ -1,0 +1,209 @@
+{
+  "schema_version": "1",
+  "id": "corebank.member.lookup_balance",
+  "version": "0.1.0",
+  "status": "approved",
+  "description": "Look up a member by member number and read their name and Share Savings balance.",
+  "app": {
+    "app_id": "corebank",
+    "surface": "web",
+    "compat": "*"
+  },
+  "risk": "read_only",
+  "entry": {
+    "url": "{{env.base_url}}/main.html",
+    "requires_session": true
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "pii",
+      "pattern": "^\\d{5}$"
+    }
+  },
+  "outputs": {
+    "member_name": {
+      "type": "string",
+      "description": "The member's full name",
+      "sensitivity": "pii"
+    },
+    "share_savings_balance": {
+      "type": "money",
+      "description": "Balance of the member's Share Savings account",
+      "sensitivity": "confidential"
+    }
+  },
+  "outcomes": {
+    "no_results": {
+      "description": "Search ran but no member exists with the given member number; no name or balance can be returned.",
+      "when_state": "no_results"
+    },
+    "invalid_member_number": {
+      "description": "App-side validation rejected the member number (e.g. not 5 digits / non-numeric); search never ran.",
+      "when_state": "invalid_member_number"
+    },
+    "access_denied": {
+      "description": "Teller lacks permission to view this member (restricted account); member details are withheld.",
+      "when_state": "access_denied"
+    }
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"mbrno\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "textbox",
+        "tag": "input"
+      }
+    },
+    "search_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": true
+        },
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "button"
+        }
+      ],
+      "fingerprint": {
+        "role": "button",
+        "name": "Search",
+        "tag": "input"
+      }
+    },
+    "member_name": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Name:",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    },
+    "share_savings_balance": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "table_cell",
+          "row_has_text": "Share Savings",
+          "column": "Balance"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "fill_member_id_field",
+      "intent": "Enter the member number to search for",
+      "action": {
+        "kind": "fill",
+        "target": "member_id_field",
+        "value": "{{inputs.member_id}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_search",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_search_button",
+      "intent": "Run the member search",
+      "action": {
+        "kind": "click",
+        "target": "search_button"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_member_name",
+      "intent": "Read the member's full name",
+      "action": {
+        "kind": "extract",
+        "target": "member_name",
+        "into": "member_name"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_share_savings_balance",
+      "intent": "Read the Share Savings account balance",
+      "action": {
+        "kind": "extract",
+        "target": "share_savings_balance",
+        "into": "share_savings_balance"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    }
+  ],
+  "success": {
+    "state": "member_detail",
+    "outputs_present": [
+      "member_name",
+      "share_savings_balance"
+    ]
+  },
+  "provenance": {
+    "run_id": "20260923T192440Z-4e94fc",
+    "model": "claude-opus-5",
+    "recorded_at": "2026-09-23T19:25:08.153246Z",
+    "reviewed_by": "Kingsley Torlowei"
+  }
+}

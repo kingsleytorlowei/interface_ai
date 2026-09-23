@@ -1,0 +1,15 @@
+{
+  "run_id": "20260923T191921Z-0beaf1",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:19:21.612255Z",
+  "finished_at": "2026-09-23T19:19:23.582530Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/20260923T191921Z-0beaf1",
+  "kind": "business_outcome",
+  "code": "system_error",
+  "message": "Application error page (fatal) during search; flow cannot complete and must be retried later."
+}

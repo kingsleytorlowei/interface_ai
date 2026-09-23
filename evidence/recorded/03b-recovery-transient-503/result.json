@@ -1,0 +1,24 @@
+{
+  "run_id": "03b-recovery-transient-503",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:24.740481Z",
+  "finished_at": "2026-09-23T19:27:27.492353Z",
+  "recoveries": [
+    {
+      "step_id": null,
+      "state": "service_unavailable",
+      "recovery": "retry",
+      "attempt": 1
+    }
+  ],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/03b-recovery-transient-503",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_balance": "\u00abshare_savings_balance\u00bb"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "run_id": "03c-recovery-broadcast-notice",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:29.491583Z",
+  "finished_at": "2026-09-23T19:27:31.275355Z",
+  "recoveries": [
+    {
+      "step_id": "click_search_button",
+      "state": "system_notice",
+      "recovery": "click",
+      "attempt": 1
+    }
+  ],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/03c-recovery-broadcast-notice",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_balance": "\u00abshare_savings_balance\u00bb"
+  }
+}

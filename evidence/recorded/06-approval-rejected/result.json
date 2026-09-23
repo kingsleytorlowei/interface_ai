@@ -1,0 +1,15 @@
+{
+  "run_id": "06-approval-rejected",
+  "capability_id": "corebank.subaccount.open",
+  "capability_version": "1.0.0",
+  "started_at": "2026-09-23T19:27:44.367786Z",
+  "finished_at": "2026-09-23T19:27:47.144225Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/06-approval-rejected",
+  "kind": "aborted",
+  "step_id": "confirm",
+  "reason": "approval rejected: click button \"Confirm\""
+}

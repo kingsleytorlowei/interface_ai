@@ -1,0 +1,12 @@
+{
+  "scenario": "Business outcome: member not found",
+  "expected": "business_outcome (member not found), nothing committed",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "member_id"
+  ]
+}

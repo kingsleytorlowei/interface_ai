@@ -1,0 +1,14 @@
+{
+  "scenario": "Fault recovery: broadcast notice interstitial",
+  "expected": "success after clicking through the notice",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {
+    "broadcast_notices": 1
+  },
+  "expire_sessions": false,
+  "input_names": [
+    "member_id"
+  ]
+}

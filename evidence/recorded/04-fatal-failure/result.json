@@ -1,0 +1,19 @@
+{
+  "run_id": "04-fatal-failure",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:33.266476Z",
+  "finished_at": "2026-09-23T19:27:34.533256Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/04-fatal-failure",
+  "kind": "failure",
+  "category": "app_error",
+  "step_id": "click_search_button",
+  "expected": "member_detail",
+  "observed": "system_error: Application error page",
+  "retryable": true,
+  "message": "application error screen (system_error)"
+}

@@ -1,0 +1,12 @@
+{
+  "scenario": "Fault recovery: session expired mid-run",
+  "expected": "success after re-authenticating",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": true,
+  "input_names": [
+    "member_id"
+  ]
+}

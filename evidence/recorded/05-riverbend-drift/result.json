@@ -1,0 +1,25 @@
+{
+  "run_id": "05-riverbend-drift",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:36.552454Z",
+  "finished_at": "2026-09-23T19:27:42.395621Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [
+    {
+      "step_id": "fill_member_id_field",
+      "target": "member_id_field",
+      "strategy_index": 1
+    }
+  ],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/05-riverbend-drift",
+  "kind": "failure",
+  "category": "target_not_found",
+  "step_id": "click_search_button",
+  "expected": "target search_button to resolve to exactly one element",
+  "observed": "not_found: no strategy matched",
+  "retryable": false,
+  "message": "not_found: no strategy matched"
+}

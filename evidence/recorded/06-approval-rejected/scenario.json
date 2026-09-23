@@ -1,0 +1,14 @@
+{
+  "scenario": "Approval rejected: unattended irreversible step",
+  "expected": "aborted at the approval gate, committed_steps == []",
+  "artifact": "corebank.subaccount.open@1.0.0",
+  "artifact_source": "fixture (hand-written)",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "account_type",
+    "initial_deposit",
+    "member_id"
+  ]
+}

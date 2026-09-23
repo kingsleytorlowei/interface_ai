@@ -1,0 +1,297 @@
+{
+  "schema_version": "1",
+  "id": "corebank.subaccount.open",
+  "version": "1.0.0",
+  "status": "approved",
+  "description": "Open a new sub-account for a member with an initial deposit.",
+  "app": {
+    "app_id": "corebank",
+    "surface": "web",
+    "compat": "7.2.x"
+  },
+  "risk": "irreversible",
+  "entry": {
+    "url": "{{env.base_url}}/main.html",
+    "requires_session": true
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "pii",
+      "pattern": "^\\d{5}$"
+    },
+    "account_type": {
+      "type": "string",
+      "description": "Sub-account product",
+      "sensitivity": "internal",
+      "enum": [
+        "Money Market",
+        "Holiday Club",
+        "Share Certificate"
+      ]
+    },
+    "initial_deposit": {
+      "type": "money",
+      "description": "Opening deposit in USD",
+      "sensitivity": "internal"
+    }
+  },
+  "outputs": {
+    "confirmation_number": {
+      "type": "string",
+      "description": "Core system confirmation number",
+      "sensitivity": "internal"
+    }
+  },
+  "outcomes": {
+    "member_not_found": {
+      "description": "No member with that number",
+      "when_state": "no_results"
+    },
+    "access_denied": {
+      "description": "Teller lacks permission for this member",
+      "when_state": "access_denied"
+    },
+    "deposit_rejected": {
+      "description": "The core system rejected the account type or deposit (minimum $5.00)",
+      "when_state": "subacct_invalid"
+    }
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"mbrno\"]"
+        }
+      ]
+    },
+    "search_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": true
+        }
+      ]
+    },
+    "open_subaccount_link": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "link",
+          "name": "Open Sub-Account",
+          "exact": true
+        }
+      ]
+    },
+    "account_type_select": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Account Type",
+          "direction": "right",
+          "role": "combobox"
+        }
+      ]
+    },
+    "initial_deposit_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Initial Deposit",
+          "direction": "right",
+          "role": "textbox"
+        }
+      ]
+    },
+    "continue_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Continue",
+          "exact": true
+        }
+      ]
+    },
+    "confirm_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Confirm",
+          "exact": true
+        }
+      ]
+    },
+    "confirmation_number": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Confirmation #:",
+          "direction": "right",
+          "role": "cell"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "id": "enter_member_id",
+      "intent": "Enter the member number",
+      "action": {
+        "kind": "fill",
+        "target": "member_id_field",
+        "value": "{{inputs.member_id}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_search",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "search",
+      "intent": "Search for the member",
+      "action": {
+        "kind": "click",
+        "target": "search_button"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "open_form",
+      "intent": "Open the sub-account form",
+      "action": {
+        "kind": "click",
+        "target": "open_subaccount_link"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_form",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "choose_type",
+      "intent": "Choose the account type",
+      "action": {
+        "kind": "select",
+        "target": "account_type_select",
+        "option": "{{inputs.account_type}}"
+      },
+      "risk": "read_only"
+    },
+    {
+      "id": "enter_deposit",
+      "intent": "Enter the initial deposit",
+      "action": {
+        "kind": "fill",
+        "target": "initial_deposit_field",
+        "value": "{{inputs.initial_deposit}}"
+      },
+      "risk": "read_only"
+    },
+    {
+      "id": "review",
+      "intent": "Submit for review (nothing is created yet)",
+      "action": {
+        "kind": "click",
+        "target": "continue_button"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_review",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "confirm",
+      "intent": "Confirm: creates the sub-account",
+      "action": {
+        "kind": "click",
+        "target": "confirm_button"
+      },
+      "risk": "irreversible",
+      "expect": {
+        "state": "subacct_opened",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "read_confirmation",
+      "intent": "Read the confirmation number",
+      "action": {
+        "kind": "extract",
+        "target": "confirmation_number",
+        "into": "confirmation_number"
+      },
+      "risk": "read_only"
+    }
+  ],
+  "success": {
+    "state": "subacct_opened",
+    "outputs_present": [
+      "confirmation_number"
+    ]
+  },
+  "provenance": {
+    "run_id": "hand-written",
+    "model": "none",
+    "recorded_at": "2026-09-23T00:00:00Z",
+    "reviewed_by": "test-fixture"
+  }
+}

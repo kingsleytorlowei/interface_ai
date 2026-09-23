@@ -1,0 +1,12 @@
+{
+  "scenario": "Happy path: known member",
+  "expected": "success, typed outputs, no recoveries",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "member_id"
+  ]
+}

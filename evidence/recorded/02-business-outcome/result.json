@@ -1,0 +1,15 @@
+{
+  "run_id": "02-business-outcome",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-23T19:27:16.364032Z",
+  "finished_at": "2026-09-23T19:27:17.557071Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/recorded/02-business-outcome",
+  "kind": "business_outcome",
+  "code": "no_results",
+  "message": "Search ran but no member exists with the given member number; no name or balance can be returned."
+}
