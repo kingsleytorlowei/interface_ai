@@ -57,7 +57,10 @@ def tool_definitions(goal: Goal, app: AppModel) -> list[dict[str, Any]]:
               {"reason": {"type": "string"}}),
         _tool("finish", "Finish discovery. List the ids of the recorded steps that make up the "
                         "flow, in order (leave out detours). Map business outcomes you saw or "
-                        "expect to screen states.",
+                        "expect to screen states: an outcome is a screen where the flow ends "
+                        "instead of succeeding (e.g. no such record). Don't list the success "
+                        "screen or screens the flow passes through; error, notice and alert "
+                        "screens are already handled by the app's state library.",
               {"steps": {"type": "array", "items": {"type": "string"}},
                "outcomes": {"type": "array", "items": {
                    "type": "object",

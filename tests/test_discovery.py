@@ -164,6 +164,22 @@ def test_problems_are_reported_back_to_the_model(open_session: OpenSession) -> N
     assert (result.status, result.reason) == ("gave_up", "cannot find the balance")
 
 
+def test_outcome_on_the_success_path_is_sent_back(open_session: OpenSession) -> None:
+    """Seen in the first real run: the model mapped outcomes onto member_search and
+    member_detail, which ended verification on the search form. It must fix that first."""
+    on_path = [*OUTCOMES, {"code": "system_error", "state": "member_search",
+                           "description": "Error during search"}]
+    planner = ScriptedPlanner([
+        fill(), SEARCH, extract("member_name", "Jane Q. Sample"),
+        extract("share_savings_balance", "$4,210.37"),
+        ("finish", {"steps": FLOW, "outcomes": on_path, "notes": ""}), FINISH])
+    result = discover(LOOKUP_GOAL, discovery_session(open_session), planner)
+    rejected = planner.received[4]
+    assert rejected.is_error and "on the success path" in rejected.content
+    assert result.status == "recorded" and result.capability is not None
+    assert set(result.capability.outcomes) == {"member_not_found", "access_denied"}
+
+
 def test_turn_budget_and_silent_stops(open_session: OpenSession) -> None:
     goal = LOOKUP_GOAL.model_copy(update={"max_turns": 2})
     result = discover(goal, discovery_session(open_session),

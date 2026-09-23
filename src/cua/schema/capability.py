@@ -211,6 +211,19 @@ class Capability(Model):
         if missing := set(self.success.outputs_present) - self.outputs.keys():
             errors.append(f"success condition references undeclared outputs: {sorted(missing)}")
 
+        # An outcome ends the run the moment its screen shows, so it can't sit on the happy
+        # path (success screen, or a screen a step passes through), and replay maps each
+        # screen to exactly one outcome.
+        on_path = {self.success.state} | {s.expect.state for s in self.steps if s.expect}
+        for code, outcome in self.outcomes.items():
+            if outcome.when_state in on_path:
+                errors.append(f"outcome {code!r} maps to {outcome.when_state!r}, a screen on "
+                              "the success path; outcomes are screens where the flow ends "
+                              "instead of succeeding")
+        states = [o.when_state for o in self.outcomes.values()]
+        if dupes := {s for s in states if states.count(s) > 1}:
+            errors.append(f"several outcomes map to the same screen: {sorted(dupes)}")
+
         max_risk = max((s.risk for s in self.steps), key=lambda r: r.rank)
         if self.risk is not max_risk:
             errors.append(f"capability risk {self.risk} must equal highest step risk {max_risk}")
