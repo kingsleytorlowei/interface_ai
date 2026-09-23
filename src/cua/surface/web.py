@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 import yaml
 from playwright.sync_api import ElementHandle, Frame, Locator, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from cua.schema import ElementInfo, HumanAction, Observation, Target, UINode
 from cua.schema.targets import (
@@ -35,7 +36,7 @@ from cua.schema.targets import (
     Strategy,
 )
 
-from .base import Pinned, ResolutionError, Resolved
+from .base import ActionTimeout, Pinned, ResolutionError, Resolved
 
 # --- snapshot parsing ------------------------------------------------------------------------
 
@@ -238,6 +239,21 @@ def describe_strategy(s: Strategy) -> str:
 # --- adapter ---------------------------------------------------------------------------------
 
 
+# How long one action (navigation, click, fill, ...) may take, including the page load it
+# triggers, before it counts as a timeout. Playwright's own default is 30 s, which turns one
+# hung load into a minute-long run; a checkpoint's own wait is separate (Step.expect).
+ACTION_TIMEOUT_MS = 10_000
+SNAPSHOT_TIMEOUT_MS = 5_000  # failure evidence must not hang on the page that failed
+
+
+@contextmanager
+def _action_budget() -> Iterator[None]:
+    try:
+        yield
+    except PlaywrightTimeout as e:
+        raise ActionTimeout(str(e).splitlines()[0]) from e
+
+
 class WebSurface:
     def __init__(self, page: Page) -> None:
         self.page = page
@@ -254,6 +270,7 @@ class WebSurface:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=headless)
             context = browser.new_context(viewport={"width": 1280, "height": 800})
+            context.set_default_timeout(ACTION_TIMEOUT_MS)
             context.add_init_script(_CAPTURE_JS)
             try:
                 yield cls(context.new_page())
@@ -285,13 +302,16 @@ class WebSurface:
         except PlaywrightError:
             return False  # a frame is mid-navigation
 
-    def observe(self) -> Observation:
+    def observe(self, settle_timeout_ms: int = 5000) -> Observation:
         for attempt in range(3):
-            self.settle()
+            self.settle(settle_timeout_ms)
             try:
-                snapshot = self.page.aria_snapshot(mode="ai")
+                snapshot = self.page.aria_snapshot(mode="ai", timeout=SNAPSHOT_TIMEOUT_MS)
                 text = "\n".join(f.evaluate(_BODY_TEXT) for f in self._frames())
                 break
+            except PlaywrightTimeout as e:
+                if attempt == 2:
+                    raise ActionTimeout(str(e).splitlines()[0]) from e
             except PlaywrightError:
                 if attempt == 2:
                     raise
@@ -307,10 +327,11 @@ class WebSurface:
 
     def screenshot(self) -> bytes:
         masks = [f.locator("input[type=password]") for f in self._frames()]
-        return self.page.screenshot(mask=masks)
+        return self.page.screenshot(mask=masks, timeout=SNAPSHOT_TIMEOUT_MS)
 
     def navigate(self, url: str) -> None:
-        self.page.goto(url)
+        with _action_budget():
+            self.page.goto(url)
         self.settle()
 
     # frames -----------------------------------------------------------------------------
@@ -511,22 +532,26 @@ class WebSurface:
     # actions ----------------------------------------------------------------------------
 
     def click(self, el: Resolved) -> None:
-        el.handle.click()
+        with _action_budget():
+            el.handle.click()
         self._activity()
 
     def fill(self, el: Resolved, value: str) -> None:
-        el.handle.fill(value)
+        with _action_budget():
+            el.handle.fill(value)
         self._activity()
 
     def select(self, el: Resolved, option: str) -> None:
-        el.handle.select_option(label=option)
+        with _action_budget():
+            el.handle.select_option(label=option)
         self._activity()
 
     def press(self, key: str, el: Resolved | None = None) -> None:
-        if el is None:
-            self.page.keyboard.press(key)
-        else:
-            el.handle.press(key)
+        with _action_budget():
+            if el is None:
+                self.page.keyboard.press(key)
+            else:
+                el.handle.press(key)
         self._activity()
 
     # human capture ----------------------------------------------------------------------

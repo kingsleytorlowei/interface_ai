@@ -32,6 +32,12 @@ class ResolutionError(Exception):
         self.attempts = attempts or []
 
 
+class ActionTimeout(Exception):
+    """The surface did not respond within its action budget (a slow or hung load). Adapters
+    raise this rather than their own timeout types, so the engine can treat slowness as a
+    recoverable condition on any surface."""
+
+
 @dataclass
 class Pinned:
     """An element the LLM referred to by ref, pinned before refs can go stale."""
@@ -42,7 +48,9 @@ class Pinned:
 
 
 class Surface(Protocol):
-    def observe(self) -> Observation: ...
+    def observe(self, settle_timeout_ms: int = 5000) -> Observation:
+        """The current screen, after waiting up to `settle_timeout_ms` for it to go quiet."""
+        ...
 
     def screenshot(self) -> bytes:
         """Capture the screen with sensitive inputs (e.g. passwords) masked."""

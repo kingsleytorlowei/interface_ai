@@ -8,7 +8,8 @@ Runtime conditions come from two places:
 - data (always on): not-found (99999), validation errors, member alert interstitial (23456),
   permission denial (34567), minimum-deposit validation on sub-accounts;
 - injected faults, toggled via /__admin (not linked from the UI, and outside the agent's
-  allowlist): latency, transient 503s, fatal system errors, broadcast notices, session expiry.
+  allowlist): latency, stalled loads, transient 503s, fatal system errors, broadcast
+  notices, session expiry.
 """
 
 import asyncio
@@ -33,6 +34,8 @@ DEMO_PASSWORD = "demo-only-password"  # fake app, fake credential; the engine re
 class Faults(BaseModel):
     latency_ms: int = 0
     transient_failures: int = 0  # next N content page loads return 503
+    stalled_loads: int = 0  # next N content page loads hang for stall_ms, then succeed
+    stall_ms: int = 15000
     fatal_errors: int = 0  # next N member searches return a system error page
     broadcast_notices: int = 0  # next N member searches show a dismissable system notice
     session_ttl_s: int = 900
@@ -63,9 +66,13 @@ def create_app(variant: str = "pinnacle") -> FastAPI:
         return await call_next(request)
 
     def guard(request: Request) -> HTMLResponse | None:
-        """Common checks for content screens: session, then injected transient failure."""
+        """Common checks for content screens: session, then injected stall or transient
+        failure."""
         if not session_ok(request):
             return page(request, "login.html", expired=True)
+        if faults.stalled_loads > 0:
+            faults.stalled_loads -= 1
+            time.sleep(faults.stall_ms / 1000)  # sync handler: runs in the threadpool
         if faults.transient_failures > 0:
             faults.transient_failures -= 1
             return page(request, "unavailable.html", status=503)

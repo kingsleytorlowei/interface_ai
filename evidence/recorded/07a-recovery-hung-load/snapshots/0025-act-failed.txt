@@ -1,9 +1,9 @@
 url: http://127.0.0.1:58672/main.html
 title: CoreOne Teller - Pinnacle Community Credit Union
-frames: ['http://127.0.0.1:58672/banner', 'http://127.0.0.1:58672/nav', 'http://127.0.0.1:58672/subacct/review']
+frames: ['http://127.0.0.1:58672/banner', 'http://127.0.0.1:58672/nav', 'http://127.0.0.1:58672/inquiry']
 
 --- tree ---
-- generic [ref=f5e1]:
+- generic [active] [ref=f5e1]:
   - iframe [ref=f5e2]:
     - generic [ref=f6e1]:
       - generic [ref=f6e2]: Pinnacle Community Credit Union
@@ -28,31 +28,21 @@ frames: ['http://127.0.0.1:58672/banner', 'http://127.0.0.1:58672/nav', 'http://
                 - link "Sign Off" [ref=f7e15] [cursor=pointer]:
                   - /url: /signoff
         - paragraph [ref=f7e16]: CoreOne Teller v7.2.3
-    - iframe [active] [ref=f5e5]:
-      - generic [active] [ref=f8e1]:
+    - iframe [ref=f5e5]:
+      - generic [ref=f8e1]:
         - table [ref=f8e2]:
           - rowgroup [ref=f8e3]:
             - row [ref=f8e4]:
-              - cell "Review Sub-Account" [ref=f8e5]
-        - paragraph [ref=f8e6]: Please review. Opening a sub-account cannot be undone from this screen.
+              - cell "MEMBER INQUIRY" [ref=f8e5]
         - table [ref=f8e7]:
           - rowgroup [ref=f8e8]:
             - row [ref=f8e9]:
-              - cell "Member" [ref=f8e10]
-              - cell "Jane Q. Sample («inputs.member_id»)" [ref=f8e11]
-            - row [ref=f8e12]:
-              - cell "Account Type" [ref=f8e13]
-              - cell "Holiday Club" [ref=f8e14]
-            - row [ref=f8e15]:
-              - cell "Nickname" [ref=f8e16]
-              - cell [ref=f8e17]
-            - row [ref=f8e18]:
-              - cell "Initial Deposit" [ref=f8e19]
-              - cell "$25.00" [ref=f8e20]
-        - button "Confirm" [ref=f8e22]
-        - link "Cancel" [ref=f8e23] [cursor=pointer]:
-          - /url: /subacct?m=«inputs.member_id»
-        - paragraph [ref=f8e24]: CoreOne Teller v7.2.3
+              - cell "Member ID" [ref=f8e10]
+              - cell [ref=f8e11]:
+                - textbox [ref=f8e12]
+              - cell [ref=f8e13]:
+                - button "Search" [ref=f8e14]
+        - paragraph [ref=f8e15]: CoreOne Teller v7.2.3
 
 --- text ---
 
@@ -64,15 +54,7 @@ Reports
 Sign Off
 
 CoreOne Teller v7.2.3
-Review Sub-Account
-
-Please review. Opening a sub-account cannot be undone from this screen.
-
-Member	Jane Q. Sample («inputs.member_id»)
-Account Type	Holiday Club
-Nickname	
-Initial Deposit	$25.00
-
- Cancel
+MEMBER INQUIRY
+Member ID		
 
 CoreOne Teller v7.2.3

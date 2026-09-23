@@ -23,6 +23,8 @@ from cua.schema import (
     Target,
 )
 from cua.schema.targets import ByRole, FrameSelector
+from cua.session import GuardedSession
+from cua.surface import ActionTimeout
 from cua.surface.web import WebSurface
 
 LOOKUP = load_capability("corebank.member.lookup_balance")
@@ -106,6 +108,63 @@ def test_persistent_unavailability_exhausts_recovery(open_session: OpenSession) 
     assert isinstance(result, Failure)
     assert result.category is FailureCategory.RECOVERY_EXHAUSTED and result.retryable
     assert len(result.recoveries) == 3
+
+
+# Slowness: the tests shrink the browser's action budget (10 s in production) so a stall of a
+# few seconds counts as a hung load.
+FAST_TIMEOUT_MS = 1500
+STALL = {"stall_ms": 3000}
+
+
+def short_budget(session: GuardedSession) -> str:
+    session._surface.page.context.set_default_timeout(FAST_TIMEOUT_MS)  # type: ignore[attr-defined]
+    return session.env["base_url"]
+
+
+def test_hung_load_before_commit_restarts_once(open_session: OpenSession) -> None:
+    session = open_session()
+    fault(short_budget(session), stalled_loads=1, **STALL)
+    result = replay(LOOKUP, {"member_id": "12345"}, session, **NO_WAIT)
+    assert isinstance(result, Success), result
+    assert [(r.state, r.recovery, r.step_id) for r in result.recoveries] == [
+        ("timeout", "retry", "entry")]
+    assert "run_restarted" in event_kinds(result)
+
+
+def test_persistent_slowness_fails_as_a_timeout_where_it_happened(
+        open_session: OpenSession) -> None:
+    session = open_session(sign_on=False)
+    fault(short_budget(session), latency_ms=2500)
+    result = replay(LOOKUP, {"member_id": "12345"}, session, **NO_WAIT)
+    assert isinstance(result, Failure), result
+    assert (result.category, result.step_id) == (FailureCategory.TIMEOUT, "sign_on")
+    assert result.retryable and len(result.recoveries) == 1
+    assert "\n" not in result.observed  # the full Playwright log stays in the events
+
+
+def test_timeout_after_commit_escalates_instead_of_restarting(
+        open_session: OpenSession, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A click inside a frame doesn't wait for the page it triggers (a slow response there is
+    # absorbed by the checkpoint wait), so simulate the top-level case: the confirm click goes
+    # through, then its response times out.
+    armed = []
+    control = InMemoryControl(approve=lambda _: armed.append(True) or True)  # handoff aborts
+    session = open_session(control=control)
+    surface = session._surface  # type: ignore[attr-defined]
+    real_click = surface.click
+
+    def click(el: object) -> None:
+        real_click(el)
+        if armed:
+            raise ActionTimeout("Timeout 10000ms exceeded.")
+
+    monkeypatch.setattr(surface, "click", click)
+    result = replay(OPEN_SUBACCOUNT, PARAMS, session, **NO_WAIT)
+    assert isinstance(result, Aborted), result
+    [request] = control.interventions
+    assert request.step_id == "confirm" and "timed out" in request.reason
+    assert result.committed_steps == ["confirm"]
+    assert "run_restarted" not in event_kinds(result)
 
 
 def test_expired_session_reauthenticates(open_session: OpenSession) -> None:

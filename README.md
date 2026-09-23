@@ -142,8 +142,10 @@ uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"
 ```
 
 `{"fatal_errors": 1}` instead gives `failure` / `app_error` with a screenshot in the
-evidence. Recovery from a transient 503 and from an expired session is recorded in
-[evidence/recorded/](evidence/README.md).
+evidence. Recovery from a transient 503, an expired session and a hung page load, and a
+clean `timeout` failure when the app stays slow, are recorded in
+[evidence/recorded/](evidence/README.md) (see [Injected faults](#injected-faults) for why
+those can't be triggered from here).
 
 **7. Escalation and handoff to a human.** Member 23456 has a MEMBER ALERT that a person must
 read. The run pauses on the live session and asks an operator.
@@ -188,9 +190,9 @@ local mock app.
   `catalog/corebank/capabilities/` (`0.1.0`, from the real discovery run). Skip steps 2–3
   and they report `"capability_version": "0.1.0"`.
 - **`uv run python scripts/record_evidence.py`** starts its own mock banks and re-records
-  every run that needs neither a model nor a human (happy path, not found, three recoveries,
-  fatal failure, tenant drift, rejected approval) into `evidence/recorded/`, checking each
-  result. It takes about 30 s.
+  every run that needs neither a model nor a human (happy path, not found, four recoveries,
+  fatal failure, tenant drift, rejected approval, timeout) into `evidence/recorded/`,
+  checking each result. It takes about 2 min (the slowness scenarios wait out real timeouts).
 - **The real runs are committed**: both discovery attempts (the first was caught by the
   verification gate), the approval, and the console handoff with screenshots. See the
   [evidence index](evidence/README.md).
@@ -211,22 +213,36 @@ app with a fake credential).
 | `99999` | Not found |
 | `12a` | Invalid member number |
 
-Injected faults are a test harness only, outside the agent's allowlist:
+### Injected faults
+
+A test harness only, outside the agent's allowlist. Each `PUT` replaces the whole fault set:
 
 ```bash
 curl -X PUT localhost:8001/__admin/faults -H 'content-type: application/json' \
-  -d '{"latency_ms": 0, "transient_failures": 1, "fatal_errors": 0, "broadcast_notices": 1, "session_ttl_s": 900}'
+  -d '{"broadcast_notices": 1}'
 curl -X POST localhost:8001/__admin/expire-sessions
 curl -X POST localhost:8001/__admin/reset
 ```
 
-Faults are one-shot counters consumed by the next matching page load, including the one
-that follows sign-on, so inject one at a time.
+| Fault | Effect |
+|---|---|
+| `broadcast_notices: N` | next N searches show a dismissable notice |
+| `fatal_errors: N` | next N searches show the application error page |
+| `transient_failures: N` | next N content page loads return 503 |
+| `stalled_loads: N` | next N content page loads hang for `stall_ms` (default 15 s) |
+| `latency_ms: N` | every request is delayed by N ms |
+| `session_ttl_s: N` | sessions expire after N s |
+
+The counters are consumed by the next matching page load. Every `cua replay` signs on
+first, and the page that loads right after sign-on already counts, so a pending 503 or
+stall is spent there, before any step runs. Searches only happen inside the flow, so the
+notice and error faults do work from the command line; the recorder injects the others after
+sign-on (`recorded/03b`, `07a`).
 
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 169 tests, about 3 min (real Chromium against the mock bank)
+uv run pytest            # 172 tests, about 3 min (real Chromium against the mock bank)
 uv run lint-imports      # 8 architectural contracts
 uv run ruff check .
 ```

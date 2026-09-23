@@ -108,6 +108,16 @@ SCENARIOS = [
              {"member_id": "12345", "account_type": "Holiday Club", "initial_deposit": "25.00"},
              lambda r: r.kind == "aborted" and r.committed_steps == [],
              "aborted at the approval gate, committed_steps == []"),
+    # Slowness no screen can name: judged by the 10 s action budget, not the state library.
+    Scenario("07a-recovery-hung-load", "Fault recovery: one page load hangs past the budget",
+             LOOKUP, {"member_id": "12345"},
+             lambda r: r.kind == "success" and recoveries(r) == ["retry"],
+             "success after restarting from entry", faults={"stalled_loads": 1}),
+    Scenario("07b-timeout", "Timeout: the app stays slower than the budget", LOOKUP,
+             {"member_id": "12345"},
+             lambda r: r.kind == "failure" and r.category == "timeout" and r.retryable,
+             "failure/timeout after one retry, retryable (nothing committed)",
+             faults={"latency_ms": 12000}),
 ]
 
 

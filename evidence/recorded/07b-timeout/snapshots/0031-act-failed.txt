@@ -1,0 +1,25 @@
+url: http://127.0.0.1:58672/main.html
+title: CoreOne Teller - Pinnacle Community Credit Union
+frames: ['http://127.0.0.1:58672/banner', 'http://127.0.0.1:58672/nav', 'http://127.0.0.1:58672/inquiry']
+
+--- tree ---
+- generic [active] [ref=f9e1]:
+  - iframe [ref=f9e2]
+  - generic [ref=f9e3]:
+    - iframe [ref=f9e4]
+    - iframe [ref=f9e5]
+
+--- text ---
+
+Pinnacle Community Credit Union   CoreOne Teller 7.2.3
+Functions
+Member Inquiry
+Transactions
+Reports
+Sign Off
+
+CoreOne Teller v7.2.3
+MEMBER INQUIRY
+Member ID		
+
+CoreOne Teller v7.2.3

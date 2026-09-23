@@ -1,0 +1,14 @@
+{
+  "scenario": "Timeout: the app stays slower than the budget",
+  "expected": "failure/timeout after one retry, retryable (nothing committed)",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {
+    "latency_ms": 12000
+  },
+  "expire_sessions": false,
+  "input_names": [
+    "member_id"
+  ]
+}

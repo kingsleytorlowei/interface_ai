@@ -5,6 +5,6 @@ surface and the normalized element model in `cua.schema`. Knows nothing about go
 policies or LLMs. Only `cua.session` may use it.
 """
 
-from .base import Pinned, ResolutionError, Resolved, Surface
+from .base import ActionTimeout, Pinned, ResolutionError, Resolved, Surface
 
-__all__ = ["Pinned", "ResolutionError", "Resolved", "Surface"]
+__all__ = ["ActionTimeout", "Pinned", "ResolutionError", "Resolved", "Surface"]

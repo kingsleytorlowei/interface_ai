@@ -1,0 +1,14 @@
+{
+  "scenario": "Fault recovery: one page load hangs past the budget",
+  "expected": "success after restarting from entry",
+  "artifact": "corebank.member.lookup_balance@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {
+    "stalled_loads": 1
+  },
+  "expire_sessions": false,
+  "input_names": [
+    "member_id"
+  ]
+}

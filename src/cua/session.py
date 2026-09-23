@@ -45,7 +45,7 @@ from cua.schema import (
     render_template,
 )
 from cua.secrets import SecretProvider
-from cua.surface import ResolutionError, Resolved, Surface
+from cua.surface import ActionTimeout, ResolutionError, Resolved, Surface
 
 # --- errors -------------------------------------------------------------------------------
 
@@ -56,6 +56,7 @@ class SessionError(Exception):
     in an abort or a handoff rather than a failure."""
 
     category: FailureCategory | None = FailureCategory.APP_ERROR
+    step_id: str | None = None  # where it happened, if not inside a driver's step (sign-on)
 
 
 class PolicyDenied(SessionError):
@@ -93,15 +94,17 @@ class TargetError(SessionError):
 
 
 class ActionFailed(SessionError):
-    category = FailureCategory.APP_ERROR
-
-    def __init__(self, message: str, risk: Risk) -> None:
+    def __init__(self, message: str, risk: Risk, *, step_id: str | None = None,
+                 timed_out: bool = False) -> None:
         super().__init__(message)
         self.risk = risk  # the attempt may have taken effect before it failed
+        self.step_id = step_id
+        self.category = FailureCategory.TIMEOUT if timed_out else FailureCategory.APP_ERROR
 
 
 class SignOnFailed(SessionError):
     category = FailureCategory.APP_ERROR
+    step_id = "sign_on"
 
 
 # --- commands -----------------------------------------------------------------------------
@@ -207,7 +210,11 @@ class GuardedSession:
 
     def observe(self, *, quiet: bool = False) -> Observation:
         """`quiet` logs the observation only if the screen changed (for polling loops)."""
-        obs = self._surface.observe()
+        try:
+            obs = self._surface.observe()
+        except ActionTimeout as e:
+            self.log.emit(EventKind.ACTION_FAILED, stage="observe", error=str(e))
+            raise ActionFailed(f"observe failed: {e}", Risk.READ_ONLY, timed_out=True) from e
         digest = snapshot_digest(obs)
         if not quiet or digest != self._last_digest:
             self.log.emit(EventKind.OBSERVATION, url=obs.url, title=obs.title,
@@ -216,9 +223,10 @@ class GuardedSession:
         return obs
 
     def capture(self, label: str, step_id: str | None = None) -> str | None:
-        """Best-effort failure snapshot (tree, text, masked screenshot); returns its path."""
+        """Best-effort failure snapshot (tree, text, masked screenshot); returns its path.
+        Doesn't wait long for quiet: the page may be the one that hung."""
         try:
-            obs = self._surface.observe()
+            obs = self._surface.observe(settle_timeout_ms=1000)
         except Exception:
             obs = None
         try:
@@ -286,7 +294,10 @@ class GuardedSession:
             self.log.emit(EventKind.ACTION_FAILED, step, stage="act",
                           error=f"{type(e).__name__}: {e}")
             self.capture("act-failed", step)
-            raise ActionFailed(f"{cmd.action.kind} failed: {e}", decision.risk) from e
+            # The full error is in the event log; the result carries its first line.
+            first_line = (str(e).splitlines() or [type(e).__name__])[0]
+            raise ActionFailed(f"{cmd.action.kind} failed: {first_line}", decision.risk,
+                               step_id=step, timed_out=isinstance(e, ActionTimeout)) from e
 
         after = self.observe()
         if violation := self._off_allowlist(after):

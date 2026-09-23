@@ -63,6 +63,12 @@ from .outputs import OutputError, parse_output
 TRANSIENT = {FailureCategory.TIMEOUT, FailureCategory.APP_ERROR,
              FailureCategory.RECOVERY_EXHAUSTED}
 
+# A timed-out action (a slow or hung load) before anything has committed restarts the run
+# from its entry point this many times; the app's state library can't name it, because no
+# screen ever arrived.
+TIMEOUT_RETRIES = 1
+TIMEOUT_BACKOFF_S = 1.0
+
 
 class _Stop(Exception):
     """Ends the run with a terminal result."""
@@ -149,13 +155,32 @@ class Replayer:
                                                  for k, v in self._inputs.items()})
 
     def _execute(self) -> RunResult:
-        if self.cap.entry.requires_session and not self.session.signed_on:
-            self.session.sign_on()
         while True:
             try:
+                if self.cap.entry.requires_session and not self.session.signed_on:
+                    self.session.sign_on()
                 return self._attempt()
             except _Restart:
                 self.log.emit("run_restarted")
+            except ActionFailed as e:
+                # After a commit a restart would repeat it; _attempt escalates those instead.
+                if e.category is not FailureCategory.TIMEOUT or self._committed:
+                    raise
+                self._retry_after_timeout(e)
+                self.log.emit("run_restarted")
+
+    def _retry_after_timeout(self, e: ActionFailed) -> None:
+        self._recovery_counts["timeout"] += 1
+        attempt = self._recovery_counts["timeout"]
+        step_id = e.step_id or self._step_id
+        if attempt > TIMEOUT_RETRIES:
+            raise self._failure(FailureCategory.TIMEOUT, "a response within the action budget",
+                                str(e), f"timed out {attempt} times; last: {e}",
+                                step_id=step_id)
+        self._recoveries.append(RecoveryRecord(step_id=step_id, state="timeout",
+                                               recovery="retry", attempt=attempt))
+        self.log.emit("recovery", step_id, state="timeout", recovery="retry", attempt=attempt)
+        self._sleep(TIMEOUT_BACKOFF_S)
 
     def _attempt(self) -> RunResult:
         self._outputs = {}
@@ -166,7 +191,14 @@ class Replayer:
         for step in self.cap.steps:
             self._step = step
             self.log.emit("step_started", step.id, intent=step.intent)
-            self._run_step(step)
+            try:
+                self._run_step(step)
+            except ActionFailed as e:
+                if e.category is not FailureCategory.TIMEOUT or not self._committed:
+                    raise
+                # Whether it went through is unknown, and a restart would repeat what did.
+                self._escalate(f"{step.id} timed out ({e}); steps {self._committed} may "
+                               "have taken effect")
             self._settle(step.expect)
         self._step = None
         self._settle(Checkpoint(state=self.cap.success.state))
@@ -320,14 +352,18 @@ class Replayer:
                 expected = f"target {slug or '?'} to resolve to exactly one element"
             case SignOnFailed():
                 expected = "sign-on to succeed"
+            case ActionFailed(category=FailureCategory.TIMEOUT):
+                expected = "a response within the action budget"
             case _:
                 expected = "the action to complete"
-        stop = self._failure(e.category or FailureCategory.APP_ERROR, expected, str(e), str(e))
+        stop = self._failure(e.category or FailureCategory.APP_ERROR, expected, str(e), str(e),
+                             step_id=e.step_id)
         return self._result(stop.kind, **stop.fields)
 
     def _failure(self, category: FailureCategory, expected: str, observed: str,
-                 message: str) -> _Stop:
-        return _Stop(Failure, category=category, step_id=self._step_id, expected=expected,
+                 message: str, *, step_id: str | None = None) -> _Stop:
+        return _Stop(Failure, category=category, step_id=step_id or self._step_id,
+                     expected=expected,
                      observed=observed, message=message,
                      retryable=not self._committed and category in TRANSIENT)
 
