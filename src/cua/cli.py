@@ -100,13 +100,15 @@ def discover_command(
     if result.capability is None:
         raise typer.Exit(1)
 
+    capability = result.capability.model_copy(
+        update={"version": store.next_draft_version(result.capability.id)})
     params = goal.examples()
     with open_session(store, goal.app, base_url, mode=Mode.REPLAY, status=Status.DRAFT,
                       control=verification_control(), headed=headed) as session:
-        verification = run_replay(result.capability, params, session)
+        verification = run_replay(capability, params, session)
     # The store keeps only what the approval gate needs; the full (redacted) result, with
     # its outputs, lives in the evidence directory it points to.
-    path = store.save(result.capability, {"kind": verification.kind,
+    path = store.save(capability, {"kind": verification.kind,
                                           "run_id": verification.run_id,
                                           "evidence_ref": verification.evidence_ref})
     typer.echo(f"verification: {verification.kind}; evidence {verification.evidence_ref}")

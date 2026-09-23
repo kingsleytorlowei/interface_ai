@@ -43,6 +43,19 @@ class Store:
                  if not p.name.endswith(".verification.json")]
         return sorted(found, key=lambda v: tuple(int(x) for x in v.split(".")))
 
+    def next_draft_version(self, capability_id: str) -> str:
+        """Where a new draft goes: 0.1.0 at first, then the next patch after an approved
+        latest version (approved is immutable). An unapproved latest draft is replaced."""
+        versions = self.versions(capability_id)
+        if not versions:
+            return "0.1.0"
+        latest = versions[-1]
+        status = json.loads(self._path(capability_id, latest).read_text()).get("status")
+        if status != Status.APPROVED:
+            return latest
+        major, minor, patch = (int(x) for x in latest.split("."))
+        return f"{major}.{minor}.{patch + 1}"
+
     def load(self, capability_id: str, version: str | None = None) -> Capability:
         versions = self.versions(capability_id)
         if not versions:

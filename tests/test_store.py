@@ -55,6 +55,18 @@ def test_approval_can_only_lower_reversible_steps(store: Store) -> None:
         store.approve(cap.id, "0.1.0", "alice", read_only_steps=["nope"])
 
 
+def test_new_drafts_never_collide_with_approved_versions(store: Store) -> None:
+    cap = draft()
+    assert store.next_draft_version(cap.id) == "0.1.0"
+    store.save(cap, {"kind": "failure"})
+    assert store.next_draft_version(cap.id) == "0.1.0"  # an unapproved draft is replaced
+    store.save(cap, {"kind": "success"})
+    store.approve(cap.id, "0.1.0", "alice")
+    assert store.next_draft_version(cap.id) == "0.1.1"
+    store.save(cap.model_copy(update={"version": "0.1.1"}))
+    assert store.next_draft_version(cap.id) == "0.1.1"
+
+
 def test_approved_versions_are_immutable_and_latest_wins(store: Store) -> None:
     cap = draft()
     store.save(cap, {"kind": "success"})
