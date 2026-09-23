@@ -50,17 +50,28 @@ class Store:
         if not versions:
             return "0.1.0"
         latest = versions[-1]
-        status = json.loads(self._path(capability_id, latest).read_text()).get("status")
-        if status != Status.APPROVED:
+        if self._status(capability_id, latest) != Status.APPROVED:
             return latest
         major, minor, patch = (int(x) for x in latest.split("."))
         return f"{major}.{minor}.{patch + 1}"
 
-    def load(self, capability_id: str, version: str | None = None) -> Capability:
+    def _status(self, capability_id: str, version: str) -> str | None:
+        return json.loads(self._path(capability_id, version).read_text()).get("status")
+
+    def load(self, capability_id: str, version: str | None = None, *,
+             status: Status | None = None) -> Capability:
+        """A given version, or else the latest one (with `status`, the latest in that status:
+        callers invoking a capability want the latest approved one, not a newer draft)."""
         versions = self.versions(capability_id)
         if not versions:
             raise StoreError(f"no capability {capability_id!r}")
-        version = version or versions[-1]
+        if version is None:
+            candidates = [v for v in versions
+                          if status is None or self._status(capability_id, v) == status]
+            if not candidates:
+                raise StoreError(f"no {status} version of {capability_id} (have {versions}); "
+                                 "approve one or pass --version")
+            version = candidates[-1]
         path = self._path(capability_id, version)
         if not path.exists():
             raise StoreError(f"no version {version} of {capability_id} (have {versions})")

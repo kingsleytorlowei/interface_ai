@@ -85,7 +85,8 @@ uv run cua approve corebank.member.lookup_balance 0.1.1 --reviewer "Your Name" \
 approved corebank.member.lookup_balance@0.1.1 (risk read_only) by Your Name
 ```
 
-**4. Replay with params: happy path.** No LLM from here on.
+**4. Replay with params: happy path.** No LLM from here on. Replay runs the latest
+*approved* version; a draft only runs if you name it with `--version`.
 
 ```bash
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}'
@@ -101,8 +102,12 @@ uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"
 
 `share_savings_balance` is typed `money`: parsed from `$4,210.37` into a decimal.
 
+The JSON result is the contract; the exit code mirrors its `kind` for shell callers:
+`0` success, `1` failure, `3` business outcome, `4` aborted, `2` usage error (bad params,
+unknown capability or version, missing key).
+
 **5. A business outcome.** An unknown member is a result the caller handles, not an error
-(exit code 1).
+(exit code 3).
 
 ```bash
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "99999"}'
@@ -221,7 +226,7 @@ that follows sign-on, so inject one at a time.
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 158 tests, about 3 min (real Chromium against the mock bank)
+uv run pytest            # 169 tests, about 3 min (real Chromium against the mock bank)
 uv run lint-imports      # 8 architectural contracts
 uv run ruff check .
 ```

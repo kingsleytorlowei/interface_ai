@@ -113,9 +113,7 @@ SCENARIOS = [
 
 def load_source(capability_id: str) -> Source:
     try:
-        capability = Store(CATALOG).load(capability_id)
-        if capability.status is Status.APPROVED:
-            return Source(capability, "discovered")
+        return Source(Store(CATALOG).load(capability_id, status=Status.APPROVED), "discovered")
     except StoreError:
         pass
     path = FIXTURES / f"{capability_id}.json"

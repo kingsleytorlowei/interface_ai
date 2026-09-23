@@ -19,7 +19,7 @@ from cua.replay import replay as run_replay
 from cua.schema import Capability, Risk, RunResult, Status
 from cua.secrets import EnvSecrets
 from cua.session import GuardedSession
-from cua.store import Store
+from cua.store import Store, StoreError
 from cua.surface.web import WebSurface
 
 app = typer.Typer(no_args_is_help=True)
@@ -31,6 +31,24 @@ HEADED = typer.Option(False, help="Show the browser window")
 OPERATOR = typer.Option(
     "unattended", help="unattended: fail closed (reject approvals, abort handoffs); "
                        "console: a human decides in the web console (forces --headed)")
+
+
+# The result kind is the contract; the exit code mirrors it for shell callers. 2 is a usage
+# error (Typer's own convention), raised before anything runs.
+EXIT_CODES = {"success": 0, "failure": 1, "business_outcome": 3, "aborted": 4}
+
+
+def usage_error(message: str) -> typer.Exit:
+    typer.echo(f"error: {message}", err=True)
+    return typer.Exit(2)
+
+
+@contextmanager
+def store_errors() -> Iterator[None]:
+    try:
+        yield
+    except StoreError as e:
+        raise usage_error(str(e)) from e
 
 
 def load_dotenv(path: Path = Path(".env")) -> None:
@@ -87,6 +105,9 @@ def discover_command(
 ) -> None:
     """Run LLM discovery on a goal, verify the draft by replaying it, and save it."""
     load_dotenv()
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise usage_error("discovery needs ANTHROPIC_API_KEY (set it in .env); "
+                          "replay and approve don't")
     store = Store(CATALOG)
     goal = Goal.model_validate(yaml.safe_load(goal_file.read_text()))
     control, needs_window = operator_control(operator)
@@ -108,9 +129,10 @@ def discover_command(
         verification = run_replay(capability, params, session)
     # The store keeps only what the approval gate needs; the full (redacted) result, with
     # its outputs, lives in the evidence directory it points to.
-    path = store.save(capability, {"kind": verification.kind,
-                                          "run_id": verification.run_id,
-                                          "evidence_ref": verification.evidence_ref})
+    with store_errors():
+        path = store.save(capability, {"kind": verification.kind,
+                                       "run_id": verification.run_id,
+                                       "evidence_ref": verification.evidence_ref})
     typer.echo(f"verification: {verification.kind}; evidence {verification.evidence_ref}")
     typer.echo(f"draft saved: {path}")
     if verification.kind != "success":
@@ -124,19 +146,26 @@ def replay(
     version: str | None = None, base_url: str = BASE_URL, headed: bool = HEADED,
     operator: str = OPERATOR,
 ) -> None:
-    """Replay a saved capability deterministically with JSON params."""
+    """Replay a saved capability deterministically with JSON params (by default its latest
+    approved version; pass --version to replay a draft)."""
     load_dotenv()
     store = Store(CATALOG)
-    capability: Capability = store.load(capability_id, version)
-    inputs: dict[str, Any] = json.loads(params)
+    with store_errors():
+        capability: Capability = store.load(
+            capability_id, version, status=None if version else Status.APPROVED)
+    try:
+        inputs: dict[str, Any] = json.loads(params)
+    except json.JSONDecodeError as e:
+        raise usage_error(f"--params is not valid JSON: {e}") from e
+    if not isinstance(inputs, dict):
+        raise usage_error("--params must be a JSON object")
     control, needs_window = operator_control(operator)
     with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
                       status=capability.status, control=control,
                       headed=headed or needs_window) as session:
         result = run_replay(capability, inputs, session)
     show(result)
-    if result.kind != "success":
-        raise typer.Exit(1)
+    raise typer.Exit(EXIT_CODES[result.kind])
 
 
 @app.command()
@@ -146,7 +175,9 @@ def approve(
 ) -> None:
     """Approve a verified draft (optionally lowering query-only steps to read_only)."""
     steps = [s.strip() for s in read_only.split(",") if s.strip()]
-    approved = Store(CATALOG).approve(capability_id, version, reviewer, read_only_steps=steps)
+    with store_errors():
+        approved = Store(CATALOG).approve(capability_id, version, reviewer,
+                                          read_only_steps=steps)
     typer.echo(f"approved {approved.id}@{approved.version} (risk {approved.risk}) "
                f"by {reviewer}")
 

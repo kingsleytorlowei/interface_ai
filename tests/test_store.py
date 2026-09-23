@@ -79,3 +79,15 @@ def test_approved_versions_are_immutable_and_latest_wins(store: Store) -> None:
     assert store.load(cap.id).version == "0.10.0"
     with pytest.raises(StoreError):
         store.load("corebank.nothing.here")
+
+
+def test_loading_by_status_skips_newer_versions_in_another_status(store: Store) -> None:
+    cap = draft()
+    store.save(cap)
+    with pytest.raises(StoreError, match="no approved version"):
+        store.load(cap.id, status=Status.APPROVED)
+    store.save(cap, {"kind": "success"})
+    store.approve(cap.id, "0.1.0", "alice")
+    store.save(cap.model_copy(update={"version": "0.1.1"}))
+    assert store.load(cap.id).version == "0.1.1"
+    assert store.load(cap.id, status=Status.APPROVED).version == "0.1.0"
