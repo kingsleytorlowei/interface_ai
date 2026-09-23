@@ -1,0 +1,89 @@
+[project]
+name = "cua"
+version = "0.1.0"
+description = "Computer-use automation: LLM discovery -> capability artifact -> deterministic replay"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.40",
+    "fastapi>=0.115",
+    "jinja2>=3.1",
+    "playwright>=1.48",
+    "pydantic>=2.9",
+    "python-multipart>=0.0.32",
+    "typer>=0.12",
+    "uvicorn>=0.32",
+]
+
+[project.scripts]
+cua = "cua.cli:app"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "import-linter>=2.1",
+ "pytest>=8",
+ "ruff>=0.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cua", "src/mock_bank"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# Architectural boundaries (see REPORT.md §1). Run: uv run lint-imports
+[tool.importlinter]
+root_packages = ["cua", "mock_bank"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "schema is pure: depends on nothing else in cua, no browser/LLM"
+type = "forbidden"
+source_modules = ["cua.schema"]
+forbidden_modules = [
+    "cua.surface", "cua.policy", "cua.control", "cua.session", "cua.evidence", "cua.store",
+    "cua.apps", "cua.discovery", "cua.replay", "cua.operator", "cua.cli",
+    "playwright", "anthropic",
+]
+
+[[tool.importlinter.contracts]]
+name = "only the session touches the surface"
+type = "forbidden"
+source_modules = ["cua.discovery", "cua.replay", "cua.operator"]
+forbidden_modules = ["cua.surface", "playwright"]
+
+[[tool.importlinter.contracts]]
+name = "replay is deterministic: no LLM"
+type = "forbidden"
+source_modules = ["cua.replay"]
+forbidden_modules = ["anthropic", "cua.discovery"]
+
+[[tool.importlinter.contracts]]
+name = "discovery and replay are independent drivers"
+type = "independence"
+modules = ["cua.discovery", "cua.replay"]
+
+[[tool.importlinter.contracts]]
+name = "surface knows nothing about drivers, policy or control"
+type = "forbidden"
+source_modules = ["cua.surface"]
+forbidden_modules = [
+    "cua.discovery", "cua.replay", "cua.policy", "cua.control", "cua.session", "anthropic",
+]
+
+[[tool.importlinter.contracts]]
+name = "the engine never imports the target app"
+type = "forbidden"
+source_modules = ["cua"]
+forbidden_modules = ["mock_bank"]

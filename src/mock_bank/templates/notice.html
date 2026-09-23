@@ -1,0 +1,8 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">SYSTEM NOTICE</td></tr></table>
+<p>Scheduled maintenance tonight 11:00 PM &ndash; 1:00 AM ET. Teller functions will be unavailable.</p>
+<form method="post" action="/inquiry">
+<input type="hidden" name="mbrno" value="{{ mbrno }}">
+<input type="submit" value="Continue">
+</form>
+{% endblock %}

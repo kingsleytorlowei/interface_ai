@@ -1,0 +1,14 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">OPEN SUB-ACCOUNT &mdash; {{ m.name }}</td></tr></table>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" action="/subacct/review">
+<input type="hidden" name="m" value="{{ m.member_id }}">
+<table border="0" cellpadding="4">
+<tr><td align="right">Account Type</td><td><select name="accttype"><option value="">-- select --</option>
+{% for t in types %}<option{% if form and form.accttype == t %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></td></tr>
+<tr><td align="right">Nickname</td><td><input type="text" name="nick" size="20" value="{{ form.nick if form else '' }}"></td></tr>
+<tr><td align="right">Initial Deposit</td><td><input type="text" name="initdep" size="10" value="{{ form.initdep if form else '' }}"></td></tr>
+<tr><td></td><td><input type="submit" value="Continue"></td></tr>
+</table>
+</form>
+{% endblock %}

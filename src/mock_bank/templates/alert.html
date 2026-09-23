@@ -1,0 +1,8 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr" style="background:#a00">*** MEMBER ALERT ***</td></tr></table>
+<p><b>{{ m.alert }}</b></p>
+<form method="post" action="/inquiry/ack">
+<input type="hidden" name="mbrno" value="{{ m.member_id }}">
+<input type="submit" value="Acknowledge">
+</form>
+{% endblock %}

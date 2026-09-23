@@ -1,0 +1,14 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">Review Sub-Account</td></tr></table>
+<p>Please review. Opening a sub-account cannot be undone from this screen.</p>
+<table border="1" cellpadding="3" cellspacing="0" bgcolor="#ffffff">
+<tr><td>Member</td><td>{{ m.name }} ({{ m.member_id }})</td></tr>
+<tr><td>Account Type</td><td>{{ form.accttype }}</td></tr>
+<tr><td>Nickname</td><td>{{ form.nick }}</td></tr>
+<tr><td>Initial Deposit</td><td>${{ form.initdep }}</td></tr>
+</table><br>
+<form method="post" action="/subacct/confirm" style="display:inline">
+<input type="hidden" name="token" value="{{ token }}"><input type="submit" value="Confirm">
+</form>
+<a class="btn" href="/subacct?m={{ m.member_id }}">Cancel</a>
+{% endblock %}

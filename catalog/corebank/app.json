@@ -1,0 +1,87 @@
+{
+  "schema_version": "1",
+  "app_id": "corebank",
+  "version": "1.0.0",
+  "description": "CoreOne Teller core-banking system (vendor product). State signatures use vendor-constant text, so they hold across tenant variants; tenant-specific labels live in capability targets.",
+  "states": {
+    "member_search": {
+      "description": "Member inquiry search form",
+      "match": [{"kind": "text", "text": "MEMBER INQUIRY"}, {"kind": "element", "role": "textbox"}]
+    },
+    "no_results": {
+      "description": "Search ran; no member with that number",
+      "match": [{"kind": "text", "text": "No member found for member number"}],
+      "precedence": 10
+    },
+    "invalid_member_number": {
+      "description": "App-side validation rejected the member number",
+      "match": [{"kind": "text", "text": "Invalid member number"}],
+      "precedence": 10
+    },
+    "access_denied": {
+      "description": "Teller lacks permission for this member (restricted account)",
+      "match": [{"kind": "text", "text": "ACCESS DENIED"}],
+      "precedence": 10
+    },
+    "member_detail": {
+      "description": "Member summary with accounts table",
+      "match": [{"kind": "text", "text": "Member Summary"}]
+    },
+    "subacct_form": {
+      "description": "Open sub-account entry form",
+      "match": [{"kind": "text", "text": "OPEN SUB-ACCOUNT"}]
+    },
+    "subacct_invalid": {
+      "description": "Sub-account form rejected the entered values",
+      "match": [{"kind": "text_regex", "pattern": "Initial deposit must be at least|Select an account type"}],
+      "precedence": 10
+    },
+    "subacct_review": {
+      "description": "Review screen before the irreversible confirm",
+      "match": [{"kind": "text", "text": "Review Sub-Account"}]
+    },
+    "subacct_opened": {
+      "description": "Sub-account created; shows confirmation number",
+      "match": [{"kind": "text", "text": "Sub-account opened successfully"}]
+    },
+    "member_alert": {
+      "description": "Member alert requiring identity confirmation. Deliberately NOT auto-dismissed: a person must read and act on it.",
+      "match": [{"kind": "text", "text": "*** MEMBER ALERT ***"}],
+      "kind": "interstitial",
+      "recovery": {"kind": "escalate"},
+      "precedence": 20
+    },
+    "system_notice": {
+      "description": "Informational broadcast notice; safe to dismiss",
+      "match": [{"kind": "text", "text": "SYSTEM NOTICE"}],
+      "kind": "interstitial",
+      "recovery": {
+        "kind": "click",
+        "target": {"frame": [{"name": "content"}], "strategies": [{"by": "role", "role": "button", "name": "Continue"}]}
+      },
+      "precedence": 20
+    },
+    "session_expired": {
+      "description": "Session timed out; sign-on screen shown",
+      "match": [{"kind": "text", "text": "Your session has expired"}],
+      "kind": "interstitial",
+      "recovery": {"kind": "reauthenticate"},
+      "max_recoveries": 1,
+      "precedence": 30
+    },
+    "service_unavailable": {
+      "description": "Transient backend unavailability",
+      "match": [{"kind": "text", "text": "Service temporarily unavailable"}],
+      "kind": "interstitial",
+      "recovery": {"kind": "reload", "wait_ms": 1000},
+      "max_recoveries": 3,
+      "precedence": 30
+    },
+    "system_error": {
+      "description": "Application error page",
+      "match": [{"kind": "text", "text": "SYSTEM ERROR"}],
+      "kind": "fatal",
+      "precedence": 30
+    }
+  }
+}

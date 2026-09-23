@@ -1,0 +1,16 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">Member Summary</td></tr></table>
+<table border="0" cellpadding="3">
+<tr><td><b>{{ v.name_label }}</b></td><td>{{ m.name }}</td></tr>
+<tr><td><b>Member No:</b></td><td>{{ m.member_id }}</td></tr>
+</table>
+<br>
+<table border="1" cellpadding="3" cellspacing="0" bgcolor="#ffffff">
+<tr bgcolor="#dddddd"><th>Sfx</th><th>Description</th><th>Account</th>{% if v.show_available_column %}<th>Available</th>{% endif %}<th>{{ v.balance_column }}</th></tr>
+{% for a in m.accounts %}
+<tr><td>{{ a.suffix }}</td><td>{{ a.description }}</td><td>****{{ a.number }}</td>{% if v.show_available_column %}<td align="right">{{ a.available|money }}</td>{% endif %}<td align="right">{{ a.balance|money }}</td></tr>
+{% endfor %}
+</table>
+<br><a class="btn" href="/subacct?m={{ m.member_id }}">Open Sub-Account</a>
+&nbsp;<a class="btn" href="/inquiry">New Inquiry</a>
+{% endblock %}

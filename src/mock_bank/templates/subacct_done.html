@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">Sub-Account Opened</td></tr></table>
+<p>Sub-account opened successfully.</p>
+<table border="0" cellpadding="3">
+<tr><td><b>Confirmation #:</b></td><td>{{ confirmation }}</td></tr>
+<tr><td><b>Suffix:</b></td><td>{{ suffix }}</td></tr>
+<tr><td><b>Account Type:</b></td><td>{{ form.accttype }}</td></tr>
+</table>
+{% endblock %}

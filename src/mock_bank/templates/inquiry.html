@@ -1,0 +1,12 @@
+{% extends "_layout.html" %}{% block body %}
+<table width="100%" cellpadding="3" cellspacing="0"><tr><td class="hdr">MEMBER INQUIRY</td></tr></table>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+{% if not_found %}<p class="err">No member found for member number {{ mbrno }}.</p>{% endif %}
+<form method="post" action="/inquiry">
+<table border="0" cellpadding="4">
+<tr><td align="right"><b>{{ v.member_id_label }}</b></td>
+    <td><input type="text" name="mbrno" size="8" maxlength="10" value="{{ mbrno or '' }}"></td>
+    <td><input type="submit" value="{{ v.search_label }}"></td></tr>
+</table>
+</form>
+{% endblock %}
