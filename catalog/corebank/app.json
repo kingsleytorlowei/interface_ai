@@ -73,7 +73,7 @@
       "description": "Transient backend unavailability",
       "match": [{"kind": "text", "text": "Service temporarily unavailable"}],
       "kind": "interstitial",
-      "recovery": {"kind": "reload", "wait_ms": 1000},
+      "recovery": {"kind": "retry", "wait_ms": 1000},
       "max_recoveries": 3,
       "precedence": 30
     },

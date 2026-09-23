@@ -67,7 +67,7 @@ CAPABILITY: dict[str, Any] = {
         },
         "member_name_cell": {
             "frame": CONTENT_FRAME,
-            "strategies": [{"by": "near", "text": "Name:", "direction": "right"}],
+            "strategies": [{"by": "near", "text": "Name:", "direction": "right", "role": "cell"}],
         },
         "savings_balance_cell": {
             "frame": CONTENT_FRAME,

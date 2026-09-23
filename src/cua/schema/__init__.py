@@ -28,6 +28,7 @@ from .capability import (
     check_against_app,
 )
 from .common import Risk, Sensitivity
+from .observation import Observation, UINode
 from .results import (
     Aborted,
     BusinessOutcome,
@@ -47,8 +48,8 @@ __all__ = [
     "Aborted", "Action", "AppModel", "AppRef", "BusinessOutcome", "Capability", "Checkpoint",
     "Click", "DriftSignal", "Entry", "Extract", "Failure", "FailureCategory", "Fill",
     "Fingerprint", "FrameSelector", "HumanAction", "InputSpec", "Intervention", "Navigate",
-    "OutcomeSpec", "OutputSpec", "ParamType", "Predicate", "Press", "Provenance", "Recovery",
-    "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity", "StateKind",
+    "Observation", "OutcomeSpec", "OutputSpec", "ParamType", "Predicate", "Press", "Provenance",
+    "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity", "StateKind",
     "StateSignature", "Status", "Step", "Strategy", "Success", "SuccessCondition", "Target",
-    "check_against_app",
+    "UINode", "check_against_app",
 ]

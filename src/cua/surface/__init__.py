@@ -4,3 +4,7 @@ Adapters (web via Playwright today; legacy web / desktop by design) translate be
 surface and the normalized element model in `cua.schema`. Knows nothing about goals, steps,
 policies or LLMs. Only `cua.session` may use it.
 """
+
+from .base import Pinned, ResolutionError, Resolved, Surface
+
+__all__ = ["Pinned", "ResolutionError", "Resolved", "Surface"]

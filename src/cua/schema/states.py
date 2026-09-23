@@ -61,15 +61,18 @@ class ClickRecovery(Model):
     target: Target
 
 
-class ReloadRecovery(Model):
-    """Retry a transient failure (slow/failed load)."""
+class RetryRecovery(Model):
+    """Transient failure: wait, then restart the capability from its entry point. Replay only
+    permits this while every step executed so far is read-only (restarting past a reversible or
+    irreversible step could repeat it); otherwise it escalates."""
 
-    kind: Literal["reload"] = "reload"
+    kind: Literal["retry"] = "retry"
     wait_ms: int = Field(default=1000, ge=0)
 
 
 class ReauthenticateRecovery(Model):
-    """Session expired: the runtime re-establishes the session (credentials never in artifacts)."""
+    """Session expired: the runtime re-establishes the session (credentials never in artifacts),
+    then restarts from the entry point under the same read-only rule as `retry`."""
 
     kind: Literal["reauthenticate"] = "reauthenticate"
 
@@ -81,7 +84,7 @@ class EscalateRecovery(Model):
 
 
 Recovery = Annotated[
-    ClickRecovery | ReloadRecovery | ReauthenticateRecovery | EscalateRecovery,
+    ClickRecovery | RetryRecovery | ReauthenticateRecovery | EscalateRecovery,
     Field(discriminator="kind"),
 ]
 

@@ -50,18 +50,19 @@ class ByText(Model):
 
 
 class ByNear(Model):
-    """Element of `role` positioned in `direction` of visible `text` — works on table layouts
-    where labels are not programmatically associated with inputs."""
+    """Nearest element of `role` positioned in `direction` of the visible anchor `text` — works
+    on table layouts where labels are not programmatically associated with inputs. The anchor
+    must be unique; two equally near candidates are ambiguous."""
 
     by: Literal["near"] = "near"
     text: str
     direction: Literal["right", "below", "left", "above"]
-    role: str | None = None
+    role: str
 
 
 class ByTableCell(Model):
-    """Cell at the intersection of the row containing `row_has_text` and the column headed
-    `column`."""
+    """Cell at the intersection of the row that has a cell whose text is exactly `row_has_text`
+    and the column whose header text is exactly `column`."""
 
     by: Literal["table_cell"] = "table_cell"
     row_has_text: str

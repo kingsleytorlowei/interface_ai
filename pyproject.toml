@@ -10,6 +10,7 @@ dependencies = [
     "playwright>=1.48",
     "pydantic>=2.9",
     "python-multipart>=0.0.32",
+    "pyyaml>=6.0.3",
     "typer>=0.12",
     "uvicorn>=0.32",
 ]
@@ -39,8 +40,12 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/cua/surface/web.py" = ["E501"]  # embedded in-page JavaScript
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore:The anyio.abc.BlockingPortal alias:DeprecationWarning"]
 
 # Architectural boundaries (see REPORT.md §1). Run: uv run lint-imports
 [tool.importlinter]
