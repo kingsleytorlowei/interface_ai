@@ -336,3 +336,6 @@ def test_a_new_automation_found_through_the_workbench(
     draft_ = store.load(PROPOSAL.capability_id, "0.1.0")
     assert draft_.description == "Member balance" and draft_.status is Status.DRAFT
     assert store.verification(draft_.id, "0.1.0")["kind"] == "success"  # type: ignore[index]
+    review = client.get(f"/automations/{draft_.id}/0.1.0").text
+    for n in range(1, len(draft_.steps) + 1):
+        assert f'alt="after step {n}"' in review  # what each step did, from the checks

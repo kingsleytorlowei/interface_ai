@@ -296,3 +296,14 @@ def test_mismatch_after_commit_escalates_instead_of_failing(open_session: OpenSe
     [request] = control.interventions
     assert request.step_id == "confirm" and "may have taken effect" in request.reason
     assert result.committed_steps == ["confirm"]
+
+
+def test_verification_keeps_a_screenshot_after_every_step(open_session: OpenSession) -> None:
+    session = open_session()
+    result = replay(LOOKUP, {"member_id": "12345"}, session, snapshot_steps=True)
+    assert isinstance(result, Success)
+    shots = sorted(p.stem.split("-", 1)[1] for p in session.log.dir.glob("snapshots/*.png"))
+    assert shots == sorted(f"after-{s.id}" for s in LOOKUP.steps)
+    # the tree and text beside each are redacted like every other snapshot
+    texts = " ".join(p.read_text() for p in session.log.dir.glob("snapshots/*.txt"))
+    assert "Jane Q. Sample" not in texts and "4,210.37" not in texts

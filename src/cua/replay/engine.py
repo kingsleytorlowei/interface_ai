@@ -28,6 +28,7 @@ from cua.schema import (
     FailureCategory,
     Fill,
     Navigate,
+    Observation,
     RecoveryRecord,
     Risk,
     RunResult,
@@ -97,6 +98,7 @@ class Replayer:
         poll_interval_s: float = 0.25,
         settle_timeout_ms: int = 5000,
         sleep: Callable[[float], None] = time.sleep,
+        snapshot_steps: bool = False,
     ) -> None:
         if errors := check_against_app(capability, session.app):
             raise ValueError(f"{capability.id} does not fit app {session.app.app_id}: {errors}")
@@ -107,6 +109,8 @@ class Replayer:
         self._poll_s = poll_interval_s
         self._settle_timeout_ms = settle_timeout_ms
         self._sleep = sleep
+        # Verification keeps a screenshot after every step, so a reviewer sees what each did.
+        self._snapshot_steps = snapshot_steps
         self._outcome_codes = {o.when_state: code for code, o in capability.outcomes.items()}
 
         self._started_at = datetime.now(UTC)
@@ -118,6 +122,9 @@ class Replayer:
         self._drift: list[DriftSignal] = []
         self._committed: list[str] = []
         self._step: Step | None = None
+        # Written when the run ends: a screen shown before an output is read already has
+        # that output on it, and only then is it known to be sensitive.
+        self._step_shots: list[tuple[str, Observation | None, bytes | None]] = []
 
     # run --------------------------------------------------------------------------------
 
@@ -132,6 +139,10 @@ class Replayer:
             result = self._result(stop.kind, **stop.fields)
         except SessionError as e:
             result = self._from_session_error(e)
+        for step_id, obs, shot in self._step_shots:
+            if obs is not None or shot is not None:
+                self.log.snapshot(f"after-{step_id}", step_id=step_id, observation=obs,
+                                  screenshot=shot)
         self.log.write_json("result.json", result.model_dump(mode="json"))
         self.log.emit("run_finished", kind=result.kind,
                       category=getattr(result, "category", None),
@@ -184,6 +195,7 @@ class Replayer:
 
     def _attempt(self) -> RunResult:
         self._outputs = {}
+        self._step_shots = []
         self._step = None
         self.session.execute(Command(Navigate(url=self._render(self.cap.entry.url)),
                                      step_id="entry"))
@@ -200,6 +212,8 @@ class Replayer:
                 self._escalate(f"{step.id} timed out ({e}); steps {self._committed} may "
                                "have taken effect")
             self._settle(step.expect)
+            if self._snapshot_steps:
+                self._step_shots.append((step.id, *self.session.peek()))
         self._step = None
         self._settle(Checkpoint(state=self.cap.success.state))
         if missing := [o for o in self.cap.success.outputs_present if o not in self._outputs]:

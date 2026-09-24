@@ -159,7 +159,8 @@ def discover_goal(ws: Workspace, goal: Goal, planner: Planner, *, control: Contr
     for params in goal.verification_params():
         with open_session(ws, goal.app, mode=Mode.REPLAY, status=Status.DRAFT,
                           control=verification_control(), audit_targets=True) as session:
-            outcome.verification.append(run_replay(capability, params, session))
+            outcome.verification.append(run_replay(capability, params, session,
+                                                   snapshot_steps=True))
         redactors.append(session.log.redactor)
         audits.append(session.target_audits)
         result = outcome.verification[-1]
@@ -327,7 +328,7 @@ def verify_overlay(ws: Workspace, capability_id: str, tenant: str,
     for inputs in param_sets:
         with open_session(ws, base.app.app_id, mode=Mode.REPLAY, status=Status.DRAFT,
                           control=verification_control(), audit_targets=True) as session:
-            runs.append(run_replay(capability, inputs, session))
+            runs.append(run_replay(capability, inputs, session, snapshot_steps=True))
         redactors.append(session.log.redactor)
         audits.append(session.target_audits)
         progress(f"verification {len(runs)}: {runs[-1].kind}; evidence "

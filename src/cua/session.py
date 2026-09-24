@@ -235,6 +235,19 @@ class GuardedSession:
         self._last_digest = digest
         return obs
 
+    def peek(self) -> tuple[Observation | None, bytes | None]:
+        """The screen and a screenshot, unwritten: for evidence the caller writes later,
+        once it knows every value it has to redact."""
+        try:
+            obs = self._surface.observe(settle_timeout_ms=1000)
+        except Exception:
+            obs = None
+        try:
+            shot = self._surface.screenshot()
+        except Exception:
+            shot = None
+        return obs, shot
+
     def capture(self, label: str, step_id: str | None = None) -> str | None:
         """Best-effort failure snapshot (tree, text, masked screenshot); returns its path.
         Doesn't wait long for quiet: the page may be the one that hung."""

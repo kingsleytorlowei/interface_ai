@@ -183,16 +183,21 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
             return back(url_on_busy, err=f"{e}. Wait for it to finish, then try again.")
         return RedirectResponse(f"/jobs/{job.id}", status_code=303)
 
-    def screenshots(verification: dict[str, Any] | None) -> list[tuple[str, str]]:
-        """(label, url) for the screenshots the verification runs took."""
-        shots: list[tuple[str, str]] = []
+    def screenshots(verification: dict[str, Any] | None
+                    ) -> tuple[dict[str, list[str]], list[tuple[str, str]]]:
+        """What the checking replays saw: per step, the screenshot after it from each check
+        (in check order); and (label, url) for anything else they captured."""
+        per_step: dict[str, list[str]] = {}
+        other: list[tuple[str, str]] = []
         for n, run in enumerate((verification or {}).get("runs", []), 1):
-            run_dir = Path(run["evidence_ref"])
-            for png in sorted(run_dir.glob("snapshots/*.png")):
-                rel = png.resolve().relative_to(config.evidence.resolve())
-                shots.append((f"check {n}: {png.stem.split('-', 1)[-1].replace('-', ' ')}",
-                              f"/evidence/{rel}"))
-        return shots
+            for png in sorted(Path(run["evidence_ref"]).glob("snapshots/*.png")):
+                url = f"/evidence/{png.resolve().relative_to(config.evidence.resolve())}"
+                label = png.stem.split("-", 1)[-1]
+                if label.startswith("after-"):
+                    per_step.setdefault(label.removeprefix("after-"), []).append(url)
+                else:
+                    other.append((f"check {n}: {label.replace('-', ' ')}", url))
+        return per_step, other
 
     def tenants_view(capability: Capability) -> list[dict[str, Any]]:
         """The default tenant, then every tenant with an overlay, with run and clearance
@@ -266,10 +271,11 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
         except StoreError as e:
             return back("/automations", err=str(e))
         verification = _verification(store.verification(capability_id, version))
+        step_shots, shots = screenshots(verification)
         return render(
             request, "automation.html", cap=capability, steps=present.steps(capability),
             ending=present.ending(capability), outcomes=present.outcomes(capability),
-            verification=verification, shots=screenshots(verification),
+            verification=verification, shots=shots, step_shots=step_shots,
             notes=(verification or {}).get("review_notes", []),
             rejection=store.rejection(capability_id, version),
             versions=store.versions(capability_id),

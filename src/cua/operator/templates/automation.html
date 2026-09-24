@@ -32,13 +32,17 @@
 <form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/approve">
 <h2>What it does</h2>
 <table>
-  <tr><th>#</th><th>Step</th><th>Where</th><th>Effect</th>{% if reviewing %}<th>Your call</th>{% endif %}</tr>
+  <tr><th>#</th><th>Step</th><th>Where</th><th>Effect</th>{% if step_shots %}<th>What it saw after</th>{% endif %}{% if reviewing %}<th>Your call</th>{% endif %}</tr>
   {% for s in steps %}
   <tr>
     <td>{{ s.number }}</td>
     <td>{{ s.intent }}</td>
     <td>{{ s.where }}{% if "technical fallback" in s.where %} ⚠{% endif %}</td>
     <td><span class="tag {{ s.risk.value }}">{{ s.risk_words }}</span></td>
+    {% if step_shots %}<td>{% set urls = step_shots.get(s.id, []) %}
+      {% if urls %}<a href="{{ urls[0] }}" target="_blank"><img class="thumb" src="{{ urls[0] }}" alt="after step {{ s.number }}"></a>
+        {% for u in urls[1:] %}<div class="meta"><a href="{{ u }}" target="_blank">check {{ loop.index + 1 }}</a></div>{% endfor %}
+      {% endif %}</td>{% endif %}
     {% if reviewing %}<td>{% if s.lowerable %}
       <label><input type="checkbox" name="read_only" value="{{ s.id }}"> it only looks things up: treat as "reads only"</label>
     {% endif %}</td>{% endif %}
