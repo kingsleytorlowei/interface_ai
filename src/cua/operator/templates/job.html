@@ -2,58 +2,46 @@
 {% block title %}{{ job.title }}{% endblock %}
 {% block head %}{% if job.running %}<meta http-equiv="refresh" content="1">{% endif %}{% endblock %}
 {% block body %}
+<div class="column">
+<p class="small"><a href="/jobs">Activity</a></p>
 <h1>{{ job.title }}</h1>
-<p class="meta">started {{ job.started_at.strftime("%H:%M:%S") }}
-  {% if job.finished_at %}· took {{ ((job.finished_at - job.started_at).total_seconds()) | round(1) }} s{% endif %}
-  {% if job.subject %}· <a href="/automations/{{ job.subject }}">the automation</a>{% endif %}</p>
+<p class="soft small" style="margin-top:8px">Started {{ job.started_at.strftime("%H:%M:%S") }}{% if job.finished_at %}, took {{ ((job.finished_at - job.started_at).total_seconds()) | round(1) }} s{% endif %}.
+  {% if job.subject %}<a href="/automations/{{ job.subject }}">The automation</a>{% endif %}</p>
 
 {% if job.running %}
-<div class="card">Working… {% if pending %}<strong><a href="/needs-you">It needs you</a></strong>{% endif %}</div>
-{% elif job.status == "refused" %}
-<div class="card result stopped"><div class="headline">Not started</div>{{ job.error }}</div>
-{% elif job.status == "crashed" %}
-<div class="card result failure"><div class="headline">Something went wrong</div>{{ job.error }}</div>
+<div class="working">Working… {% if pending %}<a href="/needs-you"><b>It needs you</b></a>{% endif %}</div>
+{% elif job.status == "refused" %}<div class="note error"><b>Not started.</b> {{ job.error }}</div>
+{% elif job.status == "crashed" %}<div class="note error"><b>Something went wrong.</b> {{ job.error }}</div>
 {% endif %}
 
 {% if view %}
-<div class="card result {{ view.tone }}">
-  <div class="headline">{{ view.headline }}</div>
-  {% if view.outputs %}<table>{% for label, value in view.outputs %}<tr><td>{{ label }}</td><td><strong>{{ value }}</strong></td></tr>{% endfor %}</table>{% endif %}
-  {% for d in view.details %}<p>{{ d }}</p>{% endfor %}
-  {% if view.advice %}<p><strong>{{ view.advice }}</strong></p>{% endif %}
-  <p class="meta">run {{ job.result[1].run_id }} · evidence kept in {{ job.result[1].evidence_ref }}</p>
-</div>
+{% set title = job.title %}{% set run_id = job.result[1].run_id %}{% set at = job.result[1].finished_at.strftime("%d %b %Y %H:%M:%S") %}
+{% include "_receipt.html" %}
+<p class="small soft">Evidence kept in {{ job.result[1].evidence_ref }}</p>
 {% elif job.kind == "stability" and job.status == "done" %}
 {% set o = job.result %}
-<div class="card result {{ 'success' if o.cleared else 'failure' }}">
-  <div class="headline">{{ o.report.verdict.value | capitalize }}: {{ (o.report.success_rate * 100) | round | int }}% of {{ o.report.runs_total }} runs succeeded</div>
-  <p>{{ o.report.drift_runs }} with drift · {{ o.report.recovery_runs }} needed a recovery · typical run {{ o.report.duration_p50_s }} s</p>
-  <p><strong>{% if o.cleared %}Cleared to run unattended.{% else %}Not cleared: {{ o.reasons | join("; ") }}.{% endif %}</strong></p>
+<div class="panel">
+  <p class="{{ 'soft' }}"><span class="status {{ 'ok' if o.cleared else 'bad' }}">{{ o.report.verdict.value | capitalize }}</span>
+  {{ (o.report.success_rate * 100) | round | int }}% of {{ o.report.runs_total }} runs succeeded; {{ o.report.drift_runs }} with drift; {{ o.report.recovery_runs }} needed a recovery; typical run {{ o.report.duration_p50_s }} s.</p>
+  <p><b>{% if o.cleared %}Cleared to run unattended.{% else %}Not cleared: {{ o.reasons | join("; ") }}.{% endif %}</b></p>
 </div>
 {% endif %}
 
 {% if job.kind == "discover" and job.status == "done" %}
 {% set o = job.result %}
+<div class="panel">
 {% if o.approvable %}
-<div class="card result success">
-  <div class="headline">Found it: a draft is ready for review</div>
-  <p>{{ o.discovery.turns }} assistant turns, then checked by replaying it {{ o.verification | length }} time{{ "s" if o.verification | length != 1 }} without the assistant.</p>
-  <p><a href="/automations/{{ o.draft.id }}/{{ o.draft.version }}"><strong>Review the draft →</strong></a></p>
-</div>
+  <p><span class="status ok">Found it</span> {{ o.discovery.turns }} assistant turns, then checked by replaying it {{ o.verification | length }} time{{ "s" if o.verification | length != 1 }} without the assistant.</p>
+  <p><a class="button primary" href="/automations/{{ o.draft.id }}/{{ o.draft.version }}">Review the draft</a></p>
 {% elif o.draft %}
-<div class="card result failure">
-  <div class="headline">It found a way, but the check didn't pass</div>
-  <p>The draft is kept for the record and can't be approved. {% if o.verification %}The checking replay ended as: {{ o.verification[-1].kind }}.{% endif %}</p>
+  <p><span class="status bad">Check failed</span> It found a way, but the checking replay didn't pass{% if o.verification %} (ended as {{ o.verification[-1].kind }}){% endif %}. The draft is kept for the record and can't be approved.</p>
   <p><a href="/automations/{{ o.draft.id }}/{{ o.draft.version }}">See the draft</a></p>
-</div>
 {% else %}
-<div class="card result failure">
-  <div class="headline">It didn't find a way to do it</div>
-  <p>{{ o.discovery.reason }}</p>
+  <p><span class="status bad">Not found</span> {{ o.discovery.reason }}</p>
+{% endif %}
+{% if o.review_notes %}<p><b>Notes for the reviewer</b></p><ul>{% for n in o.review_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
 </div>
 {% endif %}
-{% if o.review_notes %}<p><strong>Notes for the reviewer</strong></p><ul>{% for n in o.review_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
-{% endif %}
-
+</div>
 {% if job.lines %}<h2>Progress</h2><pre class="progress">{{ job.lines | join("\n") }}</pre>{% endif %}
 {% endblock %}

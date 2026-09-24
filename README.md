@@ -6,9 +6,11 @@ deterministically, without an LLM**, with typed inputs and outputs, explicit err
 guardrails on every action, and a handoff to a person on the live session when a screen
 needs one.
 
-Bank staff work in the **operator workbench**: describe an automation in plain English, check
-what it needs and gives back, watch it being found, review it as steps in their own words,
-approve it and run it from a form. The command line is for engineers and scripted runs.
+Bank staff work in the **operator workbench**, which opens on one question: *what do you need
+done?* Ask in plain words and it finds the saved automation that does it, fills in what you
+gave and runs it once you've checked; ask for something new and it sets one up, which a
+reviewer approves after reading it as steps in their own words. The command line is for
+engineers and scripted runs.
 
 Design write-up: [REPORT.md](REPORT.md) · Evidence: [evidence/](evidence/README.md) ·
 Workbench screenshots: [evidence/workbench/](evidence/workbench/)
@@ -33,16 +35,20 @@ command-line demo from step 4 on work without it.
 uv run python scripts/demo.py     # both mock banks and the workbench; opens your browser
 ```
 
-1. **Review a draft.** Under *Automations*, open **Confirm a member's identity**: a real
+1. **Ask.** Type *what's the savings balance for member 45678?* It finds the saved automation,
+   fills in 45678 (the number never leaves your computer; the assistant sees a placeholder)
+   and runs when you press **Run**; the result prints as a receipt. Without a key it matches
+   by words instead.
+2. **Review a draft.** Under *Saved automations*, open **Confirm a member's identity**: a real
    discovery left waiting for you. Read its steps and what each one saw, tick the search step
    as "only looks things up", and **Approve** it (or **Reject** it with a reason).
-2. **Run it.** On its page, **Run** with member `12345`. A teller window opens (that's the
+3. **Run it.** On its page, **Run** with member `12345`. A teller window opens (that's the
    automation's live session); the result comes back in plain words.
-3. **Be the person in the loop.** Run *Look up a member…* with `23456`. It stops at a member
+4. **Be the person in the loop.** Ask *look up member 23456* and run it. It stops at a member
    alert and appears under **Needs you**: click **Acknowledge** in the teller window, then
    **Hand back (resume)**, and the run finishes.
-4. **Read [REPORT.md](REPORT.md)** for the design and trade-offs. With a key in `.env`,
-   **New automation** turns a sentence into a new draft (about a minute and $0.10).
+5. **Read [REPORT.md](REPORT.md)** for the design and trade-offs. With a key in `.env`,
+   asking for something nothing saved does sets up a new draft (about a minute and $0.10).
 
 No time to run it? [evidence/workbench/](evidence/workbench/) has every screen, from a real
 run.
@@ -56,8 +62,8 @@ uv run cua console                                            # http://127.0.0.1
 
 | Screen | What a person does there |
 |---|---|
+| **Home** | Asks for what they need. A saved automation that does it comes back as a card with the inputs filled in, to check and **Run**; its result prints as a receipt. Something new comes back as an offer to set it up. Values in the message are taken out before anything is sent. Saved automations are listed underneath. |
 | **New automation** | Describes the work in their own words. Claude proposes what it needs and gives back and asks about what it had to guess; the person corrects it and gives two example values per input. Discovery then runs with its steps narrated, and both checking replays follow. |
-| **Automations** | Sees what exists: approved, waiting for review, rejected; cleared to run unattended or not. |
 | **Review** | Reads a draft as numbered steps (what, where in words, what it can change, a screenshot after each), then **Approves** it or **Rejects** it with a reason. Approved ones show stability per institution and can be measured. |
 | **Run** | Fills a form built from the inputs; the result says what happened and what to do next. |
 | **Needs you** | Answers approvals and handoffs from runs started here. |
@@ -209,7 +215,7 @@ set): `broadcast_notices`, `fatal_errors`, `transient_failures`, `stalled_loads`
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 247 tests, about 4 min (real Chromium against the mock bank)
+uv run pytest            # 254 tests, about 4 min (real Chromium against the mock bank)
 uv run lint-imports      # 9 architectural contracts (pyproject.toml)
 uv run mypy              # strict, with the pydantic plugin
 uv run ruff check .

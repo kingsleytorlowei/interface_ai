@@ -1,128 +1,111 @@
-{% extends "_layout.html" %}{% set active = "automations" %}
+{% extends "_layout.html" %}{% set active = "home" %}
 {% block title %}{{ cap.description }}{% endblock %}
 {% block body %}
+<div class="column">
+<p class="small"><a href="/#saved">Saved automations</a></p>
 <h1>{{ cap.description }}</h1>
-<p class="meta">
-  {{ cap.id }} · version {{ cap.version }} ·
-  {% if cap.status == "approved" %}<span class="tag ok">approved by {{ cap.provenance.reviewed_by }}</span>
-  {% elif rejection %}<span class="tag bad">rejected by {{ rejection.reviewer }}</span>
-  {% else %}<span class="tag warn">draft: waiting for review</span>{% endif %}
-  · found by {{ cap.provenance.model }} on {{ cap.provenance.recorded_at.strftime("%d %b %Y") }}
-  {% if versions | length > 1 %}· versions:
-    {% for v in versions %}<a href="/automations/{{ cap.id }}/{{ v }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
-  {% endif %}
+<p class="soft small" style="margin-top:8px">
+  {% if cap.status == "approved" %}<span class="status ok">Approved by {{ cap.provenance.reviewed_by }}</span>
+  {% elif rejection %}<span class="status bad">Rejected by {{ rejection.reviewer }}</span>
+  {% else %}<span class="status warn">Waiting for review</span>{% endif %}
+  &nbsp;Found by {{ cap.provenance.model }} on {{ cap.provenance.recorded_at.strftime("%d %b %Y") }}.
+  Version {{ cap.version }}{% if versions | length > 1 %} (also {% for v in versions if v != cap.version %}<a href="/automations/{{ cap.id }}/{{ v }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}.
 </p>
+{% if rejection %}<div class="note error">Rejected by {{ rejection.reviewer }}: {{ rejection.reason }}</div>{% endif %}
+</div>
 
-{% if rejection %}
-<div class="card"><strong>Rejected</strong> by {{ rejection.reviewer }}: {{ rejection.reason }}</div>
-{% endif %}
-
-<h2>What it needs and what it gives back</h2>
-<table>
-  <tr><th>You give it</th><th>It returns</th></tr>
+<h2>What it needs and gives back</h2>
+<table class="ledger">
+  <thead><tr><th>You give it</th><th>It gives back</th></tr></thead>
   <tr>
-    <td>{% for name, spec in cap.inputs.items() %}{{ spec.description }}
-        {% if spec.sensitivity in ("pii", "confidential") %}<span class="tag muted">{{ "personal data" if spec.sensitivity == "pii" else "confidential" }}</span>{% endif %}<br>{% endfor %}</td>
-    <td>{% for name, spec in cap.outputs.items() %}{{ spec.description }}
-        {% if spec.sensitivity in ("pii", "confidential") %}<span class="tag muted">{{ "personal data" if spec.sensitivity == "pii" else "confidential" }}</span>{% endif %}<br>{% endfor %}</td>
+    <td>{% for name, spec in cap.inputs.items() %}<div>{{ spec.description }}{% if spec.sensitivity == "pii" %} <span class="small soft">(personal data)</span>{% endif %}</div>{% endfor %}</td>
+    <td>{% for name, spec in cap.outputs.items() %}<div>{{ spec.description }}{% if spec.sensitivity in ("pii", "confidential") %} <span class="small soft">({{ "personal data" if spec.sensitivity == "pii" else "confidential" }})</span>{% endif %}</div>{% endfor %}</td>
   </tr>
 </table>
 
 {% set reviewing = cap.status == "draft" and not rejection %}
 <form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/approve">
 <h2>What it does</h2>
-<table>
-  <tr><th>#</th><th>Step</th><th>Where</th><th>Effect</th>{% if step_shots %}<th>What it saw after</th>{% endif %}{% if reviewing %}<th>Your call</th>{% endif %}</tr>
+<table class="ledger steps">
+  <thead><tr><th></th><th>Step</th><th>Where</th><th>Effect</th>{% if step_shots %}<th>What it saw after</th>{% endif %}{% if reviewing %}<th>Your call</th>{% endif %}</tr></thead>
   {% for s in steps %}
   <tr>
-    <td>{{ s.number }}</td>
+    <td class="num">{{ s.number }}</td>
     <td>{{ s.intent }}</td>
-    <td>{{ s.where }}{% if "technical fallback" in s.where %} ⚠{% endif %}</td>
-    <td><span class="tag {{ s.risk.value }}">{{ s.risk_words }}</span></td>
+    <td>{{ s.where }}{% if "technical fallback" in s.where %} <span class="status warn">fallback</span>{% endif %}</td>
+    <td><span class="effect {{ s.risk.value }}">{{ s.risk_words }}</span></td>
     {% if step_shots %}<td>{% set urls = step_shots.get(s.id, []) %}
       {% if urls %}<a href="{{ urls[0] }}" target="_blank"><img class="thumb" src="{{ urls[0] }}" alt="after step {{ s.number }}"></a>
-        {% for u in urls[1:] %}<div class="meta"><a href="{{ u }}" target="_blank">check {{ loop.index + 1 }}</a></div>{% endfor %}
-      {% endif %}</td>{% endif %}
-    {% if reviewing %}<td>{% if s.lowerable %}
-      <label><input type="checkbox" name="read_only" value="{{ s.id }}"> it only looks things up: treat as "reads only"</label>
-    {% endif %}</td>{% endif %}
+        {% for u in urls[1:] %}<a class="small" href="{{ u }}" target="_blank">second check</a>{% endfor %}{% endif %}</td>{% endif %}
+    {% if reviewing %}<td>{% if s.lowerable %}<label class="small"><input type="checkbox" name="read_only" value="{{ s.id }}"> it only looks things up</label>{% endif %}</td>{% endif %}
   </tr>
   {% endfor %}
 </table>
-<p>It finishes on {{ ending }}.
-{% if outcomes %}Other endings it recognises and reports back:
-  <ul>{% for o in outcomes %}<li>{{ o }}</li>{% endfor %}</ul>{% endif %}</p>
+<div class="column">
+<p style="margin-top:14px">It finishes on {{ ending }}.{% if outcomes %} Other endings it recognises and reports back:{% endif %}</p>
+{% if outcomes %}<ul>{% for o in outcomes %}<li>{{ o }}</li>{% endfor %}</ul>{% endif %}
 
 {% if verification %}
 <h2>How it was checked</h2>
-<p>Replayed {{ verification.runs | length }} time{{ "s" if verification.runs | length != 1 }} without
-the assistant{% if verification.runs | length > 1 %}, with different inputs each time{% endif %}:
-{% if verification.kind == "success" %}<span class="tag ok">passed</span>{% else %}<span class="tag bad">{{ verification.kind }}</span>{% endif %}
-</p>
-{% if notes %}<p><strong>Notes for the reviewer</strong></p><ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
-{% if shots %}<div class="shots">{% for label, url in shots %}
-  <figure><a href="{{ url }}" target="_blank"><img src="{{ url }}" alt="{{ label }}"></a><figcaption>{{ label }}</figcaption></figure>
-{% endfor %}</div>{% endif %}
+<p>Replayed {{ verification.runs | length }} time{{ "s" if verification.runs | length != 1 }} without the assistant{% if verification.runs | length > 1 %}, with different inputs each time{% endif %}:
+{% if verification.kind == "success" %}<span class="status ok">passed</span>{% else %}<span class="status bad">{{ verification.kind }}</span>{% endif %}</p>
+{% if notes %}<p><b>Notes for the reviewer</b></p><ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
 {% endif %}
+</div>
+{% if shots %}<div class="shots">{% for label, url in shots %}<figure><a href="{{ url }}" target="_blank"><img src="{{ url }}" alt="{{ label }}"></a><figcaption>{{ label }}</figcaption></figure>{% endfor %}</div>{% endif %}
 
 {% if reviewing %}
 <h2>Your decision</h2>
-<div class="card">
-  <p class="meta">Approving lets people run it; nothing runs unattended until its stability
-  is measured. Ticking "only looks things up" on a step marks it as changing nothing, so it
-  no longer counts as a step that may have taken effect if a run stops after it: tick it only
-  for searches and lookups.</p>
+<div class="panel column">
+  <p class="soft small">Approving lets people run it; nothing runs unattended until its stability is
+  measured. Ticking "it only looks things up" marks a step as changing nothing, so a run that stops
+  after it can safely be run again: tick it only for searches and lookups.</p>
   {% if verification and verification.kind == "success" %}
-  <label class="field">Your name</label><input type="text" name="reviewer" value="{{ operator }}" required>
-  <p><button class="primary">Approve</button>
-     <span class="meta">People can then run it. Running it with nobody watching also needs a stability check.</span></p>
-  {% else %}
-  <p>It can't be approved: the checking replay didn't pass.</p>
-  {% endif %}
+  <label class="field" for="reviewer">Your name</label>
+  <input type="text" id="reviewer" name="reviewer" value="{{ operator }}" required>
+  <p style="margin-top:14px"><button class="primary">Approve</button></p>
+  {% else %}<p>It can't be approved: the checking replay didn't pass.</p>{% endif %}
 </div>
 {% endif %}
 </form>
 
 {% if reviewing %}
-<form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/reject" class="card">
-  <strong>Or reject it</strong>
-  <label class="field">Your name</label><input type="text" name="reviewer" value="{{ operator }}" required>
-  <label class="field">Why</label><input type="text" name="reason" size="70" required>
-  <p><button>Reject</button></p>
+<form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/reject" class="panel column">
+  <b>Or reject it</b>
+  <label class="field" for="rreviewer">Your name</label><input type="text" id="rreviewer" name="reviewer" value="{{ operator }}" required>
+  <label class="field" for="reason">Why</label><input type="text" id="reason" name="reason" style="width:100%" required>
+  <p style="margin-top:14px"><button>Reject</button></p>
 </form>
 {% endif %}
 
 {% if cap.status == "approved" %}
 <h2>Where it can run</h2>
-<table>
-  <tr><th>Institution</th><th>Stability</th><th>Unattended</th><th></th></tr>
+<table class="ledger">
+  <thead><tr><th>Institution</th><th>Stability</th><th>Unattended</th><th></th></tr></thead>
   {% for t in tenants %}
   <tr>
-    <td>{{ t.label }}{% if t.overlay %}<div class="meta">{{ t.overlay.targets | length }} screen element{{ "s" if t.overlay.targets | length != 1 }} adjusted for this institution · {{ t.overlay.status.value }}</div>{% endif %}</td>
-    <td>{% if t.stability %}{{ t.stability.verdict.value }}: {{ (t.stability.success_rate * 100) | round | int }}% of {{ t.stability.runs_total }} runs,
-          {{ t.stability.measured_at.strftime("%d %b %Y") }}{% else %}<span class="meta">not measured</span>{% endif %}</td>
-    <td>{% if t.clearance is defined %}{% if not t.clearance %}<span class="tag ok">cleared</span>{% else %}<span class="tag muted" title="{{ t.clearance | join('; ') }}">needs a person</span>{% endif %}{% endif %}</td>
-    <td>{% if t.runnable %}<a href="/run/{{ cap.id }}{% if t.tenant %}?tenant={{ t.tenant }}{% endif %}">Run</a>{% endif %}</td>
+    <td>{{ t.label }}{% if t.overlay %}<div class="small soft">{{ t.overlay.targets | length }} screen element{{ "s" if t.overlay.targets | length != 1 }} adjusted for this institution</div>{% endif %}</td>
+    <td>{% if t.stability %}{{ t.stability.verdict.value | capitalize }}: {{ (t.stability.success_rate * 100) | round | int }}% of {{ t.stability.runs_total }} runs, {{ t.stability.measured_at.strftime("%d %b %Y") }}{% else %}<span class="soft">not measured</span>{% endif %}</td>
+    <td>{% if t.clearance is defined %}{% if not t.clearance %}<span class="status ok">cleared</span>{% else %}<span class="status plain" title="{{ t.clearance | join('; ') }}">with a person</span>{% endif %}{% endif %}</td>
+    <td class="act">{% if t.runnable %}<a class="button" href="/run/{{ cap.id }}{% if t.tenant %}?tenant={{ t.tenant }}{% endif %}">Run</a>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
 
 {% if cap.risk.value != "irreversible" %}
-<form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/stability" class="card">
-  <strong>Measure stability</strong>
-  <p class="meta">Runs it {{ 10 }} times with nobody watching, alternating between two sets of
-  inputs. If every run succeeds and nothing drifts, it's cleared to run unattended for 30 days.</p>
+<form method="post" action="/automations/{{ cap.id }}/{{ cap.version }}/stability" class="panel column">
+  <b>Measure stability</b>
+  <p class="soft small">Runs it 10 times with nobody watching, alternating between two sets of inputs.
+  If every run succeeds and nothing drifts, it's cleared to run unattended for 30 days.</p>
+  {% include "_notes.html" %}
   <label class="field">Institution</label>
   <select name="tenant">{% for t in tenants if t.runnable %}<option value="{{ t.tenant or '' }}">{{ t.label }}</option>{% endfor %}</select>
   {% for prefix, title in [("a_", "First inputs"), ("b_", "Second inputs")] %}
   <label class="field">{{ title }}</label>
-  {% for name, label, spec in input_fields %}
-    {% include "_input.html" %}
+  {% for name, label, spec in input_fields %}{% include "_input.html" %}{% endfor %}
   {% endfor %}
-  {% endfor %}
-  {% include "_notes.html" %}
   <input type="hidden" name="runs" value="10">
-  <p><button>Measure</button></p>
+  <p style="margin-top:14px"><button>Measure</button></p>
 </form>
 {% endif %}
 {% endif %}

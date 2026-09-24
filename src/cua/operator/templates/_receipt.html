@@ -1,0 +1,9 @@
+{# a run's result as a teller receipt; expects view, title, run_id, at #}
+<div class="receipt {{ view.tone }}" role="status">
+  <div class="head"><span>{{ title }}</span><span>{{ at }}</span></div>
+  <div class="verdict">{{ view.headline }}</div>
+  {% for label, value in view.outputs %}<div class="line"><span>{{ label }}</span><span>{{ value }}</span></div>{% endfor %}
+  {% for d in view.details %}<p class="small soft" style="margin-top:8px">{{ d }}</p>{% endfor %}
+  {% if view.advice %}<div class="advice">{{ view.advice }}</div>{% endif %}
+  <div class="foot">run {{ run_id }}</div>
+</div>

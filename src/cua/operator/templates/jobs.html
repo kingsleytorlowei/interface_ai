@@ -1,12 +1,14 @@
 {% extends "_layout.html" %}{% set active = "jobs" %}
 {% block body %}
+<div class="column">
 <h1>Activity</h1>
-<p class="meta">What was started from this workbench since it opened. One runs at a time.</p>
-<table>
-  <tr><th>Started</th><th>What</th><th>Status</th></tr>
+<p class="soft" style="margin-top:8px">What was started here since the workbench opened. One runs at a time.</p>
+</div>
+<table class="ledger">
+  <thead><tr><th>Started</th><th>What</th><th>Status</th></tr></thead>
   {% for j in jobs %}
-  <tr><td>{{ j.started_at.strftime("%H:%M:%S") }}</td><td><a href="/jobs/{{ j.id }}">{{ j.title }}</a></td>
-      <td>{{ j.status }}</td></tr>
-  {% else %}<tr><td colspan="3" class="meta">Nothing yet.</td></tr>{% endfor %}
+  <tr><td class="soft">{{ j.started_at.strftime("%H:%M:%S") }}</td><td><a class="title" href="/jobs/{{ j.id }}">{{ j.title }}</a></td>
+      <td>{% if j.running %}<span class="status warn">running</span>{% elif j.status == "done" %}<span class="status plain">finished</span>{% else %}<span class="status bad">{{ j.status }}</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="3" class="soft">Nothing yet. <a href="/">Ask for something</a>.</td></tr>{% endfor %}
 </table>
 {% endblock %}

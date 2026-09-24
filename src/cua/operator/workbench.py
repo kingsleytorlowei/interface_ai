@@ -18,7 +18,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
@@ -27,18 +27,21 @@ from cua.control import OperatorDesk
 from cua.discovery import (
     ClaudeContractProposer,
     ClaudePlanner,
+    ClaudeRouter,
     ContractProposal,
     ContractProposer,
     Goal,
+    KeywordRouter,
     Planner,
     ProposalError,
+    Router,
 )
 from cua.schema import Capability, InputSpec, ParamType, Sensitivity, Status
 from cua.store import Store, StoreError
 from cua.workflows import Progress, WorkflowError, Workspace
 
 from . import present
-from .console import add_desk_routes, desk_page
+from .console import add_desk_routes
 from .jobs import Busy, JobRunner
 
 TEMPLATES = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -59,6 +62,12 @@ class WorkbenchConfig:
     # The LLM parts, replaceable in tests; by default Claude, which needs ANTHROPIC_API_KEY.
     proposer: ContractProposer | None = None
     planner: Callable[[], Planner] | None = None
+    router: Router | None = None  # the chat; without a key, matching by words
+
+    def route(self) -> Router:
+        if self.router:
+            return self.router
+        return ClaudeRouter() if os.environ.get("ANTHROPIC_API_KEY") else KeywordRouter()
 
     def llm_ready(self) -> bool:
         return bool(self.proposer and self.planner) or bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -163,7 +172,7 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
     desk = desk or OperatorDesk()
     jobs = jobs or JobRunner()
     store = config.store
-    add_desk_routes(app, desk, config.evidence)
+    add_desk_routes(app, desk, config.evidence)  # also serves /static
     app.state.desk, app.state.jobs = desk, jobs
 
     def render(request: Request, template: str, **context: Any) -> HTMLResponse:
@@ -196,6 +205,8 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
         other: list[tuple[str, str]] = []
         for n, run in enumerate((verification or {}).get("runs", []), 1):
             for png in sorted(Path(run["evidence_ref"]).glob("snapshots/*.png")):
+                if not png.resolve().is_relative_to(config.evidence.resolve()):
+                    continue  # outside what this workbench serves
                 url = f"/evidence/{png.resolve().relative_to(config.evidence.resolve())}"
                 label = png.stem.split("-", 1)[-1]
                 if label.startswith("after-"):
@@ -226,18 +237,8 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
 
     # --- pages ----------------------------------------------------------------------------
 
-    @app.get("/")
-    def home() -> RedirectResponse:
-        return RedirectResponse("/automations", status_code=303)
-
-    @app.post("/operator")
-    def set_operator(request: Request, name: str = Form("")) -> RedirectResponse:
-        response = RedirectResponse(request.headers.get("referer") or "/", status_code=303)
-        response.set_cookie("operator", name.strip(), samesite="strict")
-        return response
-
-    @app.get("/automations", response_class=HTMLResponse)
-    def automations(request: Request) -> HTMLResponse:
+    def catalog_rows() -> list[dict[str, Any]]:
+        """Every automation: approved ones that work first, then those waiting on a person."""
         rows = []
         for capability_id in store.capability_ids():
             versions = store.versions(capability_id)
@@ -251,16 +252,124 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
                 verification = store.verification(capability_id, latest.version) or {}
                 review = ("rejected" if store.rejection(capability_id, latest.version)
                           else "ready for review" if verification.get("kind") == "success"
-                          else "verification failed")
+                          else "check failed")
             rows.append({
-                "id": capability_id, "description": latest.description,
+                "id": capability_id, "title": (approved or latest).description,
                 "latest": latest, "review": review, "approved": approved,
+                "returns": ", ".join(o.description for o in (approved or latest).outputs.values()),
                 "cleared": approved is not None
                 and not workflows.unattended_clearance(config.workspace(), approved),
                 "tenants": [o.tenant for o in store.overlays(capability_id, approved.version)
                             if o.status is Status.APPROVED] if approved else [],
             })
-        return render(request, "automations.html", rows=rows)
+        return sorted(rows, key=lambda r: (r["approved"] is None, r["title"]))
+
+    def summaries() -> list[dict[str, Any]]:
+        """What the chat's router is shown: approved automations' contracts, no values."""
+        found = []
+        for row in catalog_rows():
+            cap = row["approved"]
+            if cap is None:
+                continue
+            found.append({
+                "id": cap.id, "title": cap.description, "description": row["returns"],
+                "inputs": {n: {"type": s.type.value, "description": s.description,
+                               **({"enum": s.enum} if s.enum else {})}
+                           for n, s in cap.inputs.items()},
+                "outputs": {n: s.description for n, s in cap.outputs.items()}})
+        return found
+
+    @app.get("/", response_class=HTMLResponse)
+    def home(request: Request) -> HTMLResponse:
+        rows = catalog_rows()
+        # short titles only: an example is something to type, not a paragraph
+        examples = [r["title"] for r in rows if r["approved"] and len(r["title"]) <= 50][:3]
+        return render(request, "home.html", rows=rows, examples=examples,
+                      llm_ready=config.llm_ready())
+
+    # --- the chat's API: ask, run, and follow a job -------------------------------------
+
+    def run_card(capability: Capability, given: dict[str, str]) -> dict[str, Any]:
+        fields = []
+        for name, spec in capability.inputs.items():
+            value = given.get(name, "")
+            if spec.type is ParamType.MONEY:
+                value = value.replace("$", "").replace(",", "")
+            fields.append({"name": name, "label": _field_label(name, spec),
+                           "type": spec.type.value, "enum": spec.enum or [],
+                           "pattern": (spec.pattern or "").lstrip("^").rstrip("$"),
+                           "personal": spec.sensitivity is Sensitivity.PII, "value": value})
+        tenants = [o.tenant for o in store.overlays(capability.id, capability.version)
+                   if o.status is Status.APPROVED and o.tenant in config.tenant_urls]
+        return {"type": "run", "id": capability.id, "title": capability.description,
+                "fields": fields, "tenants": tenants,
+                "cleared": not workflows.unattended_clearance(config.workspace(), capability)}
+
+    @app.post("/api/chat")
+    async def chat(request: Request) -> JSONResponse:
+        message = str((await request.json()).get("message", "")).strip()[:2000]
+        if not message:
+            return JSONResponse({"reply": "Tell me what you need done.", "card": None})
+        route = config.route()(message, summaries())
+        card: dict[str, Any] | None = None
+        if route.action == "run" and route.automation:
+            card = run_card(store.load(route.automation, status=Status.APPROVED), route.inputs)
+        elif route.action == "create":
+            card = {"type": "create", "request": route.request or "",
+                    "ready": config.llm_ready()}
+        return JSONResponse({"reply": route.reply, "card": card})
+
+    @app.post("/api/run/{capability_id}")
+    async def api_run(request: Request, capability_id: str) -> JSONResponse:
+        body = await request.json()
+        tenant = str(body.get("tenant") or "") or None
+        try:
+            capability = workflows.load_for_replay(config.workspace(tenant), capability_id,
+                                                   tenant=tenant)
+        except StoreError as e:
+            return JSONResponse({"error": str(e)}, status_code=409)
+        inputs = {name: str((body.get("inputs") or {}).get(name, "")).strip()
+                  for name in capability.inputs}
+
+        def work(progress: Progress) -> Any:
+            progress(f"Running {capability.description}")
+            return capability, workflows.replay_capability(
+                config.workspace(tenant), capability, inputs, control=desk, attended=True)
+
+        try:
+            job = jobs.submit("run", capability.description, work, subject=capability_id)
+        except Busy as e:
+            return JSONResponse({"error": f"{e}. Wait for it to finish, then try again."},
+                                status_code=409)
+        return JSONResponse({"job": job.id})
+
+    @app.get("/api/jobs/{job_id}")
+    def api_job(job_id: str) -> JSONResponse:
+        job = jobs.get(job_id)
+        if job is None:
+            return JSONResponse({"error": "that job is no longer kept"}, status_code=404)
+        body: dict[str, Any] = {
+            "status": job.status, "title": job.title, "error": job.error,
+            "needs_you": sum(i["status"] == "pending" for i in desk.state()["items"])}
+        if job.status == "done" and job.kind == "run":
+            capability, result = job.result
+            view = present.result(capability, result)
+            body["result"] = {"tone": view.tone, "headline": view.headline,
+                              "details": view.details, "outputs": view.outputs,
+                              "advice": view.advice, "run_id": result.run_id,
+                              "at": result.finished_at.strftime("%d %b %Y %H:%M:%S")}
+        return JSONResponse(body)
+
+    @app.post("/operator")
+    def set_operator(request: Request, name: str = Form("")) -> RedirectResponse:
+        response = RedirectResponse(request.headers.get("referer") or "/", status_code=303)
+        response.set_cookie("operator", name.strip(), samesite="strict")
+        return response
+
+    @app.get("/automations")
+    def automations(request: Request) -> RedirectResponse:
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"/{query}#saved", status_code=303)
 
     @app.get("/automations/{capability_id}")
     def automation_latest(capability_id: str) -> RedirectResponse:
@@ -468,10 +577,6 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
 
     @app.get("/needs-you", response_class=HTMLResponse)
     def needs_you(request: Request) -> HTMLResponse:
-        nav = TEMPLATES.get_template("_nav.html").render(
-            operator=request.cookies.get("operator", ""), active="needs-you",
-            pending=sum(i["status"] == "pending" for i in desk.state()["items"]),
-            current_job=jobs.current())
-        return HTMLResponse(desk_page(nav))
+        return render(request, "needs_you.html")
 
     return app

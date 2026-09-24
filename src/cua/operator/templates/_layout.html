@@ -1,38 +1,14 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>{% block title %}Operator workbench{% endblock %}</title>
-<style>
-  body { font: 14px system-ui, sans-serif; margin: 24px; max-width: 1040px; color: #1a1a1a; }
-  h1 { font-size: 20px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 22px 0 8px; }
-  .meta { color: #666; font-size: 12px; }
-  .card { border: 1px solid #ccc; border-radius: 6px; padding: 12px 14px; margin: 10px 0; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e3e3e3; vertical-align: top; }
-  th { font-size: 12px; color: #555; font-weight: 600; }
-  .tag { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
-  .read_only { background: #e7f3ea; color: #1d5b2c; }
-  .reversible { background: #fff3db; color: #7a4a00; }
-  .irreversible { background: #fde2e2; color: #9b1c1c; font-weight: 600; }
-  .ok { background: #e7f3ea; color: #1d5b2c; } .warn { background: #fff3db; color: #7a4a00; }
-  .bad { background: #fde2e2; color: #9b1c1c; } .muted { background: #eee; color: #444; }
-  .flash { padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; }
-  .flash.msg { background: #e7f3ea; } .flash.err { background: #fde2e2; }
-  .result { border-left: 5px solid #999; }
-  .result.success { border-color: #2e7d32; } .result.outcome { border-color: #1565c0; }
-  .result.failure { border-color: #c62828; } .result.stopped { border-color: #c77700; }
-  .headline { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-  label.field { display: block; margin: 10px 0 4px; font-weight: 600; }
-  input[type=text], select, textarea { padding: 5px 7px; font: inherit; }
-  button.primary { background: #0f2a44; color: #fff; border: 0; border-radius: 4px; padding: 6px 14px; }
-  button { padding: 5px 12px; cursor: pointer; }
-  .shots { display: flex; flex-wrap: wrap; gap: 10px; }
-  .shots figure { margin: 0; width: 240px; } .shots img { width: 240px; border: 1px solid #ddd; }
-  .shots figcaption { font-size: 12px; color: #555; }
-  img.thumb { width: 180px; border: 1px solid #ddd; display: block; }
-  pre.progress { background: #f6f6f6; padding: 10px; font-size: 12px; white-space: pre-wrap; }
-</style>{% block head %}{% endblock %}</head>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Operator workbench{% endblock %}</title>
+<link rel="stylesheet" href="/static/workbench.css">
+{% block head %}{% endblock %}</head>
 <body>
 {% include "_nav.html" %}
-{% if message %}<div class="flash msg">{{ message }}</div>{% endif %}
-{% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+<main>
+{% if message %}<div class="note">{{ message }}</div>{% endif %}
+{% if error %}<div class="note error">{{ error }}</div>{% endif %}
 {% block body %}{% endblock %}
+</main>
 </body></html>

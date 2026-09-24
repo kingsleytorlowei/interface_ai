@@ -13,8 +13,10 @@ from .goal import Goal, GoalInput
 from .loop import DiscoveryResult, discover
 from .planner import ClaudePlanner, Planner, ScriptedPlanner
 from .recorder import Recorder, RecordingError, prune_strategies
+from .router import ClaudeRouter, KeywordRouter, Route, Router, take_values
 
 __all__ = ["ClaudeContractProposer", "ClaudePlanner", "ContractProposal", "ContractProposer",
            "DiscoveryResult", "Goal", "GoalInput", "Planner", "ProposalError", "Recorder",
-           "RecordingError", "ScriptedPlanner", "discover", "prune_strategies",
-           "sensitive_looking"]
+           "RecordingError", "Route", "Router", "ScriptedPlanner", "ClaudeRouter",
+           "KeywordRouter", "discover", "prune_strategies", "sensitive_looking",
+           "take_values"]

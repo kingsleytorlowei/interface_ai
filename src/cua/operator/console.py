@@ -16,9 +16,15 @@ from typing import Literal
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel
 
 from cua.control import DeskError, OperatorDesk
+
+STATIC = Path(__file__).parent / "static"
+TEMPLATES = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"),
+                        autoescape=select_autoescape())
 
 
 class ApprovalDecision(BaseModel):
@@ -43,19 +49,16 @@ def create_console(desk: OperatorDesk, evidence_root: Path) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def page() -> str:
-        return desk_page()
+        return TEMPLATES.get_template("console.html").render()
 
     return app
 
 
-def desk_page(nav: str = "") -> str:
-    """The cards page; the workbench passes its navigation bar in."""
-    return PAGE.replace("<!--NAV-->", nav)
-
-
 def add_desk_routes(app: FastAPI, desk: OperatorDesk, evidence_root: Path) -> None:
-    """The desk's API (state, decisions, pause, take over) and redacted evidence files."""
+    """The desk's API (state, decisions, pause, take over), redacted evidence files, and the
+    pages' shared styles and scripts."""
     evidence_root = evidence_root.resolve()
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     def decide(fn, *args) -> dict[str, str]:  # type: ignore[no-untyped-def]
         try:
@@ -109,74 +112,3 @@ def serve_console(desk: OperatorDesk, evidence_root: Path, port: int = 8765) -> 
             raise RuntimeError("operator console did not start")
         time.sleep(0.05)
     return f"http://127.0.0.1:{port}"
-
-
-PAGE = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Operator console</title>
-<style>
-  body { font: 14px system-ui, sans-serif; margin: 24px; max-width: 980px; color: #1a1a1a; }
-  header { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
-  .card { border: 1px solid #ccc; border-radius: 6px; padding: 12px 14px; margin: 10px 0; }
-  .pending { border-color: #c77700; background: #fffaf0; }
-  .kind { font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
-  .meta { color: #666; font-size: 12px; }
-  img { max-width: 100%; border: 1px solid #ddd; margin-top: 8px; }
-  button { margin-right: 6px; padding: 4px 10px; }
-  .irreversible { color: #b00020; font-weight: 600; }
-</style></head>
-<body>
-<!--NAV-->
-<header>
-  <strong>Operator console</strong>
-  <label>Operator <input id="op" size="12" placeholder="your name"></label>
-  <span id="holder" class="meta"></span>
-  <button onclick="post('/api/pause', {})">Pause run</button>
-  <button onclick="if (confirm('Take over ends the run.')) post('/api/takeover', {})">
-    Take over</button>
-</header>
-<div id="items"></div>
-<script>
-const op = document.getElementById('op');
-op.value = localStorage.getItem('operator') || '';
-op.onchange = () => localStorage.setItem('operator', op.value);
-const ENT = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ENT[c]);
-async function post(url, body) {
-  const r = await fetch(url, {method: 'POST', headers: {'content-type': 'application/json'},
-                              body: JSON.stringify({...body, operator: op.value})});
-  if (!r.ok) alert((await r.json()).detail);
-  refresh();
-}
-function card(i) {
-  const pending = i.status === 'pending';
-  const shot = i.evidence_ref ? `<img src="/evidence/${esc(i.evidence_ref)}.png">` : '';
-  const what = i.kind === 'approval'
-    ? `<div><span class="${esc(i.risk)}">${esc(i.risk)}</span>: ${esc(i.action)}</div>` : '';
-  const buttons = !pending ? '' : i.kind === 'approval'
-    ? `<button onclick="post('/api/approvals/${esc(i.id)}', {approve: true})">Approve</button>
-       <button onclick="post('/api/approvals/${esc(i.id)}', {approve: false})">Reject</button>`
-    : `<div class="meta">Work in the automation's browser window, then:</div>
-       <input id="note-${esc(i.id)}" size="50" placeholder="note (optional)">
-       <button onclick="post('/api/interventions/${esc(i.id)}', {outcome: 'resumed',
-         note: document.getElementById('note-${esc(i.id)}').value})">Hand back (resume)</button>
-       <button onclick="post('/api/interventions/${esc(i.id)}', {outcome: 'aborted',
-         note: document.getElementById('note-${esc(i.id)}').value})">End run (abort)</button>`;
-  return `<div class="card ${pending ? 'pending' : ''}">
-    <div class="kind">${esc(i.kind)} &middot; ${esc(i.status)}</div>
-    <div>${esc(i.reason)}</div>${what}
-    <div class="meta">run ${esc(i.run_id)} &middot; step ${esc(i.step_id || '-')} &middot;
-      ${esc(i.created_at)}${i.operator ? ' &middot; by ' + esc(i.operator) : ''}</div>
-    ${buttons}${pending ? shot : ''}</div>`;
-}
-async function refresh() {
-  const s = await (await fetch('/api/state')).json();
-  document.getElementById('holder').textContent =
-    `control: ${s.holder || '-'}${s.pause_requested ? ' (pause requested)' : ''}`;
-  const active = document.activeElement;
-  if (active && active.id && active.id.startsWith('note-')) return;  // don't eat typing
-  document.getElementById('items').innerHTML = s.items.map(card).join('') ||
-    '<p class="meta">Nothing needs you right now.</p>';
-}
-refresh(); setInterval(refresh, 1000);
-</script></body></html>
-"""

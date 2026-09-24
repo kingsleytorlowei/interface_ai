@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operator console</title>
+<link rel="stylesheet" href="/static/workbench.css"></head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <span class="wordmark">Operator <span>console</span></span>
+  <div class="who"><label for="opname">You are</label>
+    <input type="text" id="opname" placeholder="your name" autocomplete="name"></div>
+</div></header>
+<main>
+{% include "_desk.html" %}
+</main>
+<script>
+const op = document.getElementById("opname");
+op.value = localStorage.getItem("operator") || "";
+op.onchange = () => localStorage.setItem("operator", op.value);
+</script>
+</body></html>

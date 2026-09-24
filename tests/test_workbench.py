@@ -1,6 +1,7 @@
 """The operator workbench: what a bank employee sees and can decide, the plain-language
 results, one job at a time, and a real run through it against the mock bank."""
 
+import json
 import re
 import shutil
 import threading
@@ -8,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -24,6 +26,7 @@ from cua.discovery import (
     sensitive_looking,
 )
 from cua.discovery.contract import to_proposal
+from cua.discovery.router import ClaudeRouter, KeywordRouter, Route, take_values, to_route
 from cua.operator import present
 from cua.operator.jobs import JobRunner
 from cua.operator.workbench import WorkbenchConfig, create_workbench
@@ -86,12 +89,12 @@ def verified_draft(store: Store) -> Capability:
 
 def test_a_draft_is_reviewed_in_plain_words(store: Store, client: TestClient) -> None:
     cap = verified_draft(store)
-    listing = text(client.get("/automations").text)
-    assert "ready for review" in listing
+    listing = text(client.get("/automations").text)  # the home page's saved list
+    assert "Waiting for review" in listing
     page = text(client.get(f"/automations/{cap.id}/{cap.version}").text)
     assert 'text box right of "Member ID"' in page
     assert 'cell in row "Share Savings", column "Balance"' in page
-    assert "may change data" in page and "treat as \"reads only\"" in page
+    assert "may change data" in page and "it only looks things up" in page
     assert "recorded as reversible" in page  # the discovery note reaches the reviewer
     assert "mbrno" not in page and "strategies" not in page  # no locators, no JSON
 
@@ -118,7 +121,7 @@ def test_rejecting_from_the_page(store: Store, client: TestClient) -> None:
     page = text(response.text)
     assert "Rejected by Alice Reviewer: reads the wrong row" in page
     assert "Approve" not in page
-    assert "rejected" in text(client.get("/automations").text)
+    assert "Rejected" in text(client.get("/automations").text)
     response = client.post(f"{url}/approve", data={"reviewer": "Alice Reviewer"})
     assert "was rejected by Alice Reviewer" in text(response.text)
 
@@ -177,7 +180,7 @@ def test_one_job_at_a_time(store: Store, client: TestClient, jobs: JobRunner) ->
 
 def test_needs_you_shows_the_desk_with_the_navigation(client: TestClient) -> None:
     page = client.get("/needs-you").text
-    assert "Operator workbench" in page and "/api/state" in page
+    assert "Operator" in page and 'id="desk-items"' in page and "/static/desk.js" in page
 
 
 # --- plain-language results -----------------------------------------------------------------
@@ -330,7 +333,7 @@ def test_a_new_automation_found_through_the_workbench(
     job = jobs.wait(job_id, timeout_s=120)
     page = text(client.get(f"/jobs/{job_id}").text)
     assert job.status == "done", job.error
-    assert "a draft is ready for review" in page
+    assert "Found it" in page and "Review the draft" in page
     assert 'Filled the text box right of "Member ID"' in page
     assert 'Clicked the button "Search"' in page
     draft_ = store.load(PROPOSAL.capability_id, "0.1.0")
@@ -367,3 +370,112 @@ def test_environment_notes_are_shown_where_inputs_are_typed(store: Store,
                              notes="Sandbox: 12345 is an ordinary member.")
     client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))
     assert "12345 is an ordinary member" in text(client.get(f"/run/{LOOKUP.id}").text)
+
+
+# --- the chat -------------------------------------------------------------------------------
+
+
+def test_values_are_taken_out_before_anything_is_sent() -> None:
+    redacted, values = take_values("balance for member 45678, and $1,250.00 for jo@x.com")
+    assert redacted == "balance for member «v1», and «v2» for «v3»"
+    assert values == {"«v1»": "45678", "«v2»": "$1,250.00", "«v3»": "jo@x.com"}
+
+
+def summary(capability: Capability = LOOKUP) -> dict[str, Any]:
+    return {"id": capability.id, "title": capability.description, "description": "",
+            "inputs": {n: {"type": s.type.value} for n, s in capability.inputs.items()},
+            "outputs": {}}
+
+
+def test_a_route_keeps_only_what_can_be_trusted() -> None:
+    redacted, values = take_values("balance for 45678")
+    route = to_route({"action": "run", "automation": LOOKUP.id, "reply": "ok",
+                      "inputs": [{"name": "member_id", "value": "«v1»"},
+                                 {"name": "invented", "value": "x"}]},
+                     [summary()], redacted, values)
+    assert route.inputs == {"member_id": "45678"}
+    made_up = to_route({"action": "run", "automation": LOOKUP.id, "reply": "",
+                        "inputs": [{"name": "member_id", "value": "99999"}]},
+                       [summary()], redacted, values)
+    assert made_up.inputs == {}  # a value that isn't in the message is dropped
+    unknown = to_route({"action": "run", "automation": "corebank.nope", "reply": ""},
+                       [summary()], redacted, values)
+    assert unknown.action == "reply"
+
+
+def test_matching_by_words_without_the_assistant() -> None:
+    route = KeywordRouter()("look up the savings balance for member 45678", [summary()])
+    assert (route.action, route.automation, route.inputs) == ("run", LOOKUP.id,
+                                                              {"member_id": "45678"})
+    assert KeywordRouter()("hello there", [summary()]).action == "reply"
+
+
+class RecordingClient:
+    """Stands in for the Anthropic client: keeps every request, answers with `answer`."""
+
+    def __init__(self, answer: dict[str, Any]) -> None:
+        self.requests: list[dict[str, Any]] = []
+        self.answer = answer
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self.create))
+
+    def create(self, **request: Any) -> Any:
+        self.requests.append(request)
+        return SimpleNamespace(stop_reason="end_turn", content=[
+            SimpleNamespace(type="text", text=json.dumps(self.answer))])
+
+
+def test_the_chat_never_sends_member_data_and_fills_it_back_in(
+        store: Store, tmp_path: Path) -> None:
+    store.save(LOOKUP)
+    client_ = RecordingClient({"action": "run", "automation": LOOKUP.id, "reply": "Here it is.",
+                               "inputs": [{"name": "member_id", "value": "«v1»"}],
+                               "request": None})
+    config = WorkbenchConfig(store, tmp_path / "evidence", "http://127.0.0.1:1", headed=False,
+                             router=ClaudeRouter(client=client_))
+    client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))
+    reply = client.post("/api/chat", json={"message": "balance for member 45678, please"}).json()
+    sent = json.dumps(client_.requests, ensure_ascii=False)
+    assert "45678" not in sent and "«v1»" in sent  # the model saw a placeholder
+    assert reply["card"]["type"] == "run" and reply["reply"] == "Here it is."
+    assert [f["value"] for f in reply["card"]["fields"]] == ["45678"]  # filled back in here
+
+
+def test_asking_for_something_new_offers_to_set_it_up(store: Store, tmp_path: Path) -> None:
+    config = WorkbenchConfig(store, tmp_path / "evidence", "http://127.0.0.1:1", headed=False,
+                             proposer=fake_proposer(PROPOSAL), planner=lambda: ScriptedPlanner([]),
+                             router=lambda m, a: Route(action="create", reply="Not yet.",
+                                                       request="Read a certificate's maturity"))
+    client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))
+    card = client.post("/api/chat", json={"message": "when does it mature?"}).json()["card"]
+    assert card == {"type": "create", "request": "Read a certificate's maturity", "ready": True}
+
+
+def test_running_from_the_chat(store: Store, client: TestClient, jobs: JobRunner,
+                               monkeypatch: pytest.MonkeyPatch) -> None:
+    store.save(LOOKUP)
+
+    def fake_replay(ws: Any, capability: Capability, inputs: dict[str, str], *,
+                    control: Any, attended: bool, headed: bool = False) -> RunResult:
+        return Success(run_id="r", capability_id=capability.id,
+                       capability_version=capability.version, started_at=NOW, finished_at=NOW,
+                       evidence_ref="evidence/r",
+                       outputs={"member_name": "Jane Q. Sample",
+                                "share_savings_balance": Decimal("4210.37")})
+
+    monkeypatch.setattr(workflows, "replay_capability", fake_replay)
+    job = client.post(f"/api/run/{LOOKUP.id}", json={"inputs": {"member_id": "12345"}}).json()
+    jobs.wait(job["job"])
+    result = client.get(f"/api/jobs/{job['job']}").json()["result"]
+    assert result["tone"] == "success"
+    assert "$4,210.37" in [value for _, value in result["outputs"]]
+
+
+def test_screenshots_outside_the_served_evidence_are_left_out(store: Store, client: TestClient,
+                                                                tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere" / "run1" / "snapshots"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / "0001-after-search.png").write_bytes(b"png")
+    cap = draft()
+    store.save(cap, {"kind": "success", "runs": [
+        {"kind": "success", "run_id": "run1", "evidence_ref": str(elsewhere.parent)}]})
+    assert client.get(f"/automations/{cap.id}/{cap.version}").status_code == 200

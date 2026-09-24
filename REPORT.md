@@ -16,7 +16,7 @@ variants and injectable faults.
 | Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus an overlay (4 of 4 and 2 of 8 targets replaced) |
 | Replay | no LLM; 5 × 10 unattended replays across capabilities and tenants, all `stable`; p50 2.8 s (lookup), 4.5 s (form) |
-| Tests | 247 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
+| Tests | 254 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
 
 ## 1. Architecture
 
@@ -44,9 +44,11 @@ Key decisions:
   pixels. Legacy markup has no ids but still exposes roles, names and text; the same element
   model maps onto UIA/AX trees on desktop (§4); it is cheaper and more deterministic than
   screenshots. The trade-off: a surface without an accessibility tree needs another adapter.
-- **The LLM only discovers.** Claude runs in a manual tool loop, one call per turn so it sees
-  each result, with strict tools, adaptive thinking, prompt caching and context editing. It
-  never sees credentials and types `{{inputs.x}}` placeholders instead of example values.
+- **The LLM never runs the work.** It discovers (a manual tool loop, one call per turn so it
+  sees each result, with strict tools, adaptive thinking, prompt caching and context
+  editing), proposes contracts, and in the chat picks which saved automation a request means;
+  replay never uses it. It never sees credentials, types `{{inputs.x}}` placeholders instead
+  of example values, and never sees member data typed into the chat (§6).
 - **The artifact is built from what executed, not from what the model says.** The recorder
   keeps each action that succeeded, with the locator the session synthesized and verified and
   the risk the policy applied; the model only picks the steps and names the outcomes.
@@ -56,8 +58,11 @@ Key decisions:
   the cost is one live session per process (§7).
 
 **The people in the loop.** A CLI serves engineers, not bank staff, so the actions live in
-`cua.workflows` behind two thin front ends, and staff use the **operator workbench**. An
-*employee* describes the work in their own words; Claude proposes the typed contract (one
+`cua.workflows` behind two thin front ends, and staff use the **operator workbench**, which
+opens on a chat: *what do you need done?* A request a saved automation covers comes back as
+a card with the inputs filled in, which runs only when the person presses Run; one that
+nothing saved fully covers becomes an offer to set up a new one. For that, an *employee*
+describes the work in their own words; Claude proposes the typed contract (one
 structured-output call) with questions for what it had to guess, and the person corrects it
 and gives example values before discovery runs, narrated live. A *reviewer* approves a draft
 as numbered steps in plain words ("Run the member search · button "Search" · may change
@@ -248,8 +253,11 @@ tests show the gate refusing flaky, broken, drifting, short and stale reports.
 **Secrets and data.** Credentials are `env:` references resolved at the last moment and never
 reach the model, artifacts or logs. Redaction is value-based at every sink: sensitive inputs,
 extracted outputs and secrets are registered as the run goes and replaced by placeholders
-(`«inputs.member_id»`), with SSN and card patterns as a backstop. The contract proposal sees
-only the request text, and text that looks like member data is refused before it's sent.
+(`«inputs.member_id»`), with SSN and card patterns as a backstop. Nothing typed by staff
+reaches the model with member data in it: the chat takes numbers, amounts and emails out
+before the router is called («v1») and fills them back into the card locally, and the
+contract proposal refuses text that looks like member data. Names typed into the chat are
+not detected; they still only become run inputs after the person checks the card.
 
 **Found in real runs and tests, and fixed:** the catalog stored the unredacted verification
 result (now kind and run ids only); a member's name reached an artifact through a locator
@@ -280,6 +288,9 @@ Deliberately left out:
 - **LLM limits**: a turn budget per discovery, no cost or rate limits; one provider behind
   the `Planner` protocol.
 - **On-screen data detection**: undeclared data in screenshots (§6).
+- **A conversation**: the chat routes one request at a time; there is no memory across
+  messages. Invoking saved automations by name with typed inputs is close to the brief's
+  agent-facing stretch goal; I don't claim it as a third.
 
 Stretch goals, two as the brief suggests: cross-tenant reuse with per-variant overrides (§4),
 and confidence & approval, with a measured stability score clearing approved capabilities for
