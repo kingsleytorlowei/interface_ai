@@ -1,36 +1,23 @@
-"""Composition root: wires modules together and exposes the demo commands."""
+"""Composition root for engineers and scripts: a thin command line over `cua.workflows` (the
+operator workbench is the other front end over the same functions)."""
 
 import json
 import os
 from collections.abc import Iterator
-from contextlib import ExitStack, contextmanager
-from datetime import UTC, datetime
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import typer
 import yaml
 
+from cua import workflows
 from cua.control import ControlPort, InMemoryControl, OperatorDesk
-from cua.discovery import ClaudePlanner, Goal, RecordingError, discover, prune_strategies
-from cua.evidence import RunLog
+from cua.discovery import ClaudePlanner, Goal
 from cua.operator import serve_console
-from cua.policy import Mode, Policy, Redactor
-from cua.replay import replay as run_replay
-from cua.schema import (
-    Capability,
-    Risk,
-    RunResult,
-    StabilityReport,
-    StabilityRun,
-    Status,
-    apply_overlay,
-)
-from cua.secrets import EnvSecrets
-from cua.session import GuardedSession
-from cua.stability import clearance
+from cua.schema import RunResult
 from cua.store import Store, StoreError
-from cua.surface.web import WebSurface
+from cua.workflows import WorkflowError, Workspace
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -57,10 +44,11 @@ def usage_error(message: str) -> typer.Exit:
 
 
 @contextmanager
-def store_errors() -> Iterator[None]:
+def refusals() -> Iterator[None]:
+    """Requests the caller has to fix are one line and exit 2, never a traceback."""
     try:
         yield
-    except StoreError as e:
+    except (StoreError, WorkflowError) as e:
         raise usage_error(str(e)) from e
 
 
@@ -74,19 +62,8 @@ def load_dotenv(path: Path = Path(".env")) -> None:
             os.environ.setdefault(key, value.strip().strip('"').strip("'"))
 
 
-@contextmanager
-def open_session(store: Store, app_id: str, base_url: str, *, mode: Mode,
-                 status: Status | None, control: ControlPort, headed: bool,
-                 audit_targets: bool = False,
-                 evidence: Path | None = None) -> Iterator[GuardedSession]:
-    with ExitStack() as stack:
-        surface = stack.enter_context(WebSurface.launch(headless=not headed))
-        log = stack.enter_context(RunLog(evidence or EVIDENCE, Redactor()))
-        yield stack.enter_context(GuardedSession.open(
-            surface=surface, app=store.app(app_id),
-            policy=Policy(store.policy(app_id), [base_url]), control=control, log=log,
-            secrets=EnvSecrets(), env={"base_url": base_url}, mode=mode,
-            capability_status=status, audit_targets=audit_targets))
+def workspace(base_url: str = "http://127.0.0.1:8001", headed: bool = False) -> Workspace:
+    return Workspace(Store(CATALOG), EVIDENCE, base_url, headed)
 
 
 def operator_control(mode: str) -> tuple[ControlPort, bool]:
@@ -99,12 +76,6 @@ def operator_control(mode: str) -> tuple[ControlPort, bool]:
         typer.echo(f"operator console: {url} (hand-offs happen in the browser window)")
         return desk, True
     raise typer.BadParameter(f"unknown operator mode {mode!r}")
-
-
-def verification_control() -> InMemoryControl:
-    """Verifying a draft: its reversible steps were just performed during discovery, so they
-    are approved; irreversible steps never are (verification must not commit anything)."""
-    return InMemoryControl(approve=lambda r: r.risk is Risk.REVERSIBLE)
 
 
 def parse_params(params: str) -> dict[str, Any]:
@@ -132,57 +103,17 @@ def discover_command(
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise usage_error("discovery needs ANTHROPIC_API_KEY (set it in .env); "
                           "replay and approve don't")
-    store = Store(CATALOG)
     goal = Goal.model_validate(yaml.safe_load(goal_file.read_text()))
     control, needs_window = operator_control(operator)
-    with open_session(store, goal.app, base_url, mode=Mode.DISCOVERY, status=None,
-                      control=control, headed=headed or needs_window) as session:
-        result = discover(goal, session, ClaudePlanner(model=model))
-        typer.echo(f"discovery: {result.status} ({result.reason}) in {result.turns} turns; "
-                   f"usage {result.usage}; evidence {session.log.dir}")
-    for note in result.review_notes:
-        typer.echo(f"  review: {note}")
-    if result.capability is None:
+    with refusals():
+        outcome = workflows.discover_goal(
+            workspace(base_url, headed), goal, ClaudePlanner(model=model), control=control,
+            headed=needs_window, progress=typer.echo)
+    if outcome.draft is None:
         raise typer.Exit(1)
-
-    capability = result.capability.model_copy(
-        update={"version": store.next_draft_version(result.capability.id)})
-    # Verify by replay, once per example set, auditing every strategy of every target.
-    redactors = [session.log.redactor]
-    runs: list[RunResult] = []
-    audits: list[dict[str, list[bool]]] = []
-    for params in goal.verification_params():
-        with open_session(store, goal.app, base_url, mode=Mode.REPLAY, status=Status.DRAFT,
-                          control=verification_control(), headed=headed,
-                          audit_targets=True) as session:
-            runs.append(run_replay(capability, params, session))
-        redactors.append(session.log.redactor)
-        audits.append(session.target_audits)
-        typer.echo(f"verification {len(runs)}: {runs[-1].kind}; evidence "
-                   f"{runs[-1].evidence_ref}")
-        if runs[-1].kind != "success":
-            break
-    if len(runs) == 1 and runs[0].kind == "success":
-        typer.echo("  review: the goal has no alt_example inputs, so fallback strategies are "
-                   "unproven beyond one input set")
-    kind = next((r.kind for r in runs if r.kind != "success"), "success")
-    if kind == "success":
-        try:
-            capability, notes = prune_strategies(capability, audits)
-        except RecordingError as e:
-            kind, notes = "failure", [str(e)]
-        for note in notes:
-            typer.echo(f"  review: {note}")
-    # The store keeps only what the approval gate needs; the full (redacted) results, with
-    # their outputs, live in the evidence directories they point to. It refuses an artifact
-    # containing any value this run knows to be sensitive.
-    with store_errors():
-        path = store.save(capability, {"kind": kind, "runs": [
-            {"kind": r.kind, "run_id": r.run_id, "evidence_ref": r.evidence_ref}
-            for r in runs]}, sensitive=redactors)
-    typer.echo(f"draft saved: {path}")
-    if kind != "success":
-        show(runs[-1])
+    if not outcome.approvable:
+        if outcome.verification:
+            show(outcome.verification[-1])
         raise typer.Exit(1)
 
 
@@ -195,21 +126,19 @@ def replay(
     """Replay a saved capability deterministically with JSON params (by default its latest
     approved version, with the tenant's approved overlay; pass --version to replay drafts)."""
     load_dotenv()
-    store = Store(CATALOG)
-    with store_errors():
-        capability: Capability = store.load(
-            capability_id, version, status=None if version else Status.APPROVED, tenant=tenant)
+    ws = workspace(base_url, headed)
+    with refusals():
+        capability = workflows.load_for_replay(ws, capability_id, version=version,
+                                               tenant=tenant)
     inputs = parse_params(params)
-    if operator == "unattended" and (reasons := clearance(
-            capability, store.stability(capability.id, capability.version),
-            store.policy(capability.app.app_id).unattended, datetime.now(UTC))):
+    attended = operator != "unattended"
+    if not attended and (reasons := workflows.unattended_clearance(ws, capability)):
         raise usage_error("not cleared for unattended replay: " + "; ".join(reasons)
                           + ". Run it with --operator console, where a person can step in.")
     control, needs_window = operator_control(operator)
-    with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
-                      status=capability.status, control=control,
-                      headed=headed or needs_window) as session:
-        result = run_replay(capability, inputs, session)
+    with refusals():
+        result = workflows.replay_capability(ws, capability, inputs, control=control,
+                                             attended=attended, headed=needs_window)
     show(result)
     raise typer.Exit(EXIT_CODES[result.kind])
 
@@ -224,40 +153,15 @@ def stability(
     N unattended runs, cycling through the --params sets. Saves the report that clears it
     for unattended replay, or says why not (exit 1)."""
     load_dotenv()
-    store = Store(CATALOG)
-    with store_errors():
-        capability = store.load(capability_id, status=Status.APPROVED, tenant=tenant)
-    if capability.risk is Risk.IRREVERSIBLE:
-        raise usage_error("it has irreversible steps: every run needs a person's approval, so "
-                          "it is never unattended, and measuring would repeat real commits")
+    ws = workspace(base_url, headed)
+    with refusals():
+        capability = workflows.load_for_replay(ws, capability_id, tenant=tenant)
     param_sets = [parse_params(p) for p in params]
-    measured_at = datetime.now(UTC)
-    evidence = (EVIDENCE / "stability" /
-                f"{capability.id}@{capability.version}-{measured_at:%Y%m%dT%H%M%SZ}")
-    records: list[StabilityRun] = []
-    for i in range(runs):
-        with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
-                          status=capability.status, control=InMemoryControl(),
-                          headed=headed, evidence=evidence) as session:
-            result = run_replay(capability, param_sets[i % len(param_sets)], session)
-        records.append(StabilityRun(
-            run_id=result.run_id, evidence_ref=result.evidence_ref,
-            params_set=i % len(param_sets), kind=result.kind,
-            category=getattr(result, "category", None), step_id=getattr(result, "step_id", None),
-            drift_targets=sorted({d.target for d in result.drift}),
-            recoveries=[r.recovery for r in result.recoveries],
-            duration_s=round((result.finished_at - result.started_at).total_seconds(), 2)))
-        typer.echo(f"run {i + 1}/{runs}: {result.kind}")
-    report = StabilityReport.from_runs(capability.id, capability.version, tenant, measured_at,
-                                       records)
-    path = store.save_stability(report)
-    typer.echo(f"{report.verdict}: {report.success_rate:.0%} success over {report.runs_total} "
-               f"runs, {report.drift_runs} with drift, {report.recovery_runs} with recoveries, "
-               f"p50 {report.duration_p50_s}s; saved {path}")
-    reasons = clearance(capability, report, store.policy(capability.app.app_id).unattended,
-                        datetime.now(UTC))
-    if reasons:
-        typer.echo("not cleared for unattended replay: " + "; ".join(reasons))
+    with refusals():
+        outcome = workflows.measure_stability(ws, capability, param_sets, runs=runs,
+                                              progress=typer.echo)
+    if not outcome.cleared:
+        typer.echo("not cleared for unattended replay: " + "; ".join(outcome.reasons))
         raise typer.Exit(1)
     typer.echo("cleared for unattended replay")
 
@@ -273,54 +177,12 @@ def verify_overlay(
     """Verify a draft tenant overlay by replaying the base with it on that tenant, once per
     --params set, keeping only the overlay strategies that held in every run."""
     load_dotenv()
-    store = Store(CATALOG)
-    with store_errors():
-        base = store.load(capability_id, version, status=Status.APPROVED)
-        overlay = store.overlay(tenant, capability_id, base.version)
-        if overlay is None:
-            raise StoreError(f"no {tenant} overlay for {capability_id}@{base.version}")
-        if overlay.status is not Status.DRAFT:
-            raise StoreError(f"the {tenant} overlay is {overlay.status}; nothing to verify")
-        capability = apply_overlay(base, overlay)
     param_sets = [parse_params(p) for p in params]
-    redactors: list[Redactor] = []
-    runs: list[RunResult] = []
-    audits: list[dict[str, list[bool]]] = []
-    for inputs in param_sets:
-        with open_session(store, base.app.app_id, base_url, mode=Mode.REPLAY,
-                          status=Status.DRAFT, control=verification_control(), headed=headed,
-                          audit_targets=True) as session:
-            runs.append(run_replay(capability, inputs, session))
-        redactors.append(session.log.redactor)
-        audits.append(session.target_audits)
-        typer.echo(f"verification {len(runs)}: {runs[-1].kind}; evidence "
-                   f"{runs[-1].evidence_ref}")
-        if drift := [d.target for d in runs[-1].drift if d.target in overlay.targets]:
-            typer.echo(f"  review: overlay targets resolved by a fallback: {drift}")
-        if runs[-1].kind != "success":
-            break
-    if len(runs) == 1 and runs[0].kind == "success":
-        typer.echo("  review: one --params set only, so fallback strategies are unproven "
-                   "beyond one input set")
-    kind = next((r.kind for r in runs if r.kind != "success"), "success")
-    if kind == "success":
-        try:
-            pruned, notes = prune_strategies(capability, audits,
-                                            only=overlay.targets.keys())
-        except RecordingError as e:
-            kind, notes = "failure", [str(e)]
-        else:
-            overlay = overlay.model_copy(update={
-                "targets": {name: pruned.targets[name] for name in overlay.targets}})
-        for note in notes:
-            typer.echo(f"  review: {note}")
-    with store_errors():
-        path = store.save_overlay(overlay, {"kind": kind, "runs": [
-            {"kind": r.kind, "run_id": r.run_id, "evidence_ref": r.evidence_ref}
-            for r in runs]}, sensitive=redactors)
-    typer.echo(f"overlay saved: {path}")
-    if kind != "success":
-        show(runs[-1])
+    with refusals():
+        outcome = workflows.verify_overlay(workspace(base_url, headed), capability_id, tenant,
+                                           param_sets, version=version, progress=typer.echo)
+    if not outcome.approvable:
+        show(outcome.verification[-1])
         raise typer.Exit(1)
 
 
@@ -334,18 +196,18 @@ def approve(
     """Approve a verified draft (optionally lowering query-only steps to read_only), or with
     --tenant, a verified tenant overlay."""
     steps = [s.strip() for s in read_only.split(",") if s.strip()]
+    ws = workspace()
     if tenant is not None:
         if steps:
             raise usage_error("--read-only applies to capabilities; an overlay only moves "
                               "targets, so it has no risk to lower")
-        with store_errors():
-            store = Store(CATALOG)
-            store.approve_overlay(tenant, capability_id, version, reviewer)
+        with refusals():
+            workflows.approve_overlay(ws, tenant, capability_id, version, reviewer)
         typer.echo(f"approved the {tenant} overlay for {capability_id}@{version} by {reviewer}")
         return
-    with store_errors():
-        approved = Store(CATALOG).approve(capability_id, version, reviewer,
-                                          read_only_steps=steps)
+    with refusals():
+        approved = workflows.approve(ws, capability_id, version, reviewer,
+                                     read_only_steps=steps)
     typer.echo(f"approved {approved.id}@{approved.version} (risk {approved.risk}) "
                f"by {reviewer}")
 

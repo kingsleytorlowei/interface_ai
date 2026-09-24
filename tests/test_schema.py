@@ -7,7 +7,15 @@ from typing import Any
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from cua.schema import AppModel, Capability, RunResult, Success, check_against_app
+from cua.schema import (
+    AppModel,
+    Capability,
+    RunResult,
+    Success,
+    Target,
+    check_against_app,
+    describe,
+)
 
 APP: dict[str, Any] = {
     "app_id": "corebank",
@@ -198,3 +206,21 @@ def test_catalog_app_model_is_valid() -> None:
     path = Path(__file__).parents[1] / "catalog" / "corebank" / "app.json"
     app = AppModel.model_validate_json(path.read_text())
     assert app.states["member_alert"].recovery.kind == "escalate"  # type: ignore[union-attr]
+
+
+# --- targets in words -----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("strategy,words", [
+    ({"by": "role", "role": "button", "name": "Search"}, 'button "Search"'),
+    ({"by": "label", "text": "Member ID"}, 'field labelled "Member ID"'),
+    ({"by": "text", "text": "Continue", "role": "link"}, 'link showing "Continue"'),
+    ({"by": "near", "text": "Member ID", "direction": "right", "role": "textbox"},
+     'text box right of "Member ID"'),
+    ({"by": "table_cell", "row_has_text": "Share Savings", "column": "Balance"},
+     'cell in row "Share Savings", column "Balance"'),
+    ({"by": "css", "selector": "input[name=mbrno]"}, "a technical fallback (page markup)"),
+])
+def test_targets_are_described_in_words(strategy: dict[str, str], words: str) -> None:
+    target = Target.model_validate({"strategies": [strategy, {"by": "css", "selector": "x"}]})
+    assert describe(target) == words  # the preferred strategy, never the fallback

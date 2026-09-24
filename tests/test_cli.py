@@ -14,7 +14,7 @@ from pydantic import TypeAdapter
 from typer.testing import CliRunner
 
 from conftest import CATALOG, load_capability
-from cua import cli
+from cua import cli, workflows
 from cua.control import InMemoryControl
 from cua.schema import Capability, RunResult
 from cua.store import Store
@@ -60,8 +60,8 @@ def replayed(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             "capability_version": capability.version, "started_at": NOW, "finished_at": NOW,
             "evidence_ref": "evidence/r", **RESULTS[kind]})
 
-    monkeypatch.setattr(cli, "open_session", fake_session)
-    monkeypatch.setattr(cli, "run_replay", fake_replay)
+    monkeypatch.setattr(workflows, "open_session", fake_session)
+    monkeypatch.setattr(workflows, "run_replay", fake_replay)
     return seen
 
 
@@ -69,7 +69,7 @@ def replayed(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 def cleared(monkeypatch: pytest.MonkeyPatch) -> None:
     """For tests about something else: every capability counts as cleared for unattended
     replay (the gate has its own tests below)."""
-    monkeypatch.setattr(cli, "clearance", lambda *args: [])
+    monkeypatch.setattr(workflows, "clearance", lambda *args: [])
 
 
 def approved_then_newer_draft(store: Store) -> None:
@@ -130,7 +130,7 @@ def test_discover_needs_a_key_before_opening_anything(
         store: Store, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.chdir(tmp_path)  # no .env to load the key from
-    monkeypatch.setattr(cli, "open_session", lambda *a, **k: pytest.fail("opened a session"))
+    monkeypatch.setattr(workflows, "open_session", lambda *a, **k: pytest.fail("opened a session"))
     result = runner.invoke(cli.app, ["discover", "goal.yaml"])
     assert result.exit_code == 2 and "ANTHROPIC_API_KEY" in result.output
 

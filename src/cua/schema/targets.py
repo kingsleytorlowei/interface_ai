@@ -92,3 +92,38 @@ class Target(Model):
     frame: list[FrameSelector] = []
     strategies: list[Strategy] = Field(min_length=1)
     fingerprint: Fingerprint | None = None
+
+
+# How a person would point at an element; roles as an operator would name them.
+_ROLE_WORDS = {"textbox": "text box", "combobox": "drop-down", "cell": "cell", "button": "button",
+               "link": "link", "checkbox": "checkbox", "radio": "option button"}
+
+
+def _role(role: str | None) -> str:
+    return _ROLE_WORDS.get(role or "", role or "element")
+
+
+def describe_strategy(strategy: Strategy) -> str:
+    """One strategy in words, e.g. `text box right of "Member ID"`."""
+    match strategy:
+        case ByRole(role=role, name=name):
+            return f'{_role(role)} "{name}"' if name else f"the {_role(role)}"
+        case ByLabel(text=text):
+            return f'field labelled "{text}"'
+        case ByText(text=text, role=role):
+            return f'{_role(role)} showing "{text}"' if role else f'text "{text}"'
+        case ByNear(text=text, direction=direction, role=role):
+            where = {"right": "right of", "left": "left of", "below": "below",
+                     "above": "above"}[direction]
+            return f'{_role(role)} {where} "{text}"'
+        case ByTableCell(row_has_text=row, column=column):
+            return f'cell in row "{row}", column "{column}"'
+        case ByCss():
+            return "a technical fallback (page markup)"
+    raise AssertionError(f"unhandled strategy {strategy!r}")
+
+
+def describe(target: Target) -> str:
+    """Where a step acts, as a reviewer would say it: the preferred strategy, in words. The
+    fallbacks only matter when the screen changes, which drift reporting covers."""
+    return describe_strategy(target.strategies[0])

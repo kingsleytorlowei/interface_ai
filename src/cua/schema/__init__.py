@@ -44,7 +44,7 @@ from .results import (
 )
 from .stability import StabilityReport, StabilityRun, Verdict
 from .states import AppModel, Predicate, Recovery, SignOn, StateKind, StateSignature
-from .targets import Fingerprint, FrameSelector, Strategy, Target
+from .targets import Fingerprint, FrameSelector, Strategy, Target, describe, describe_strategy
 
 __all__ = [
     "Aborted", "Action", "AppModel", "AppRef", "BaseRef", "BusinessOutcome", "Capability",
@@ -55,7 +55,6 @@ __all__ = [
     "Predicate", "Press",
     "Provenance", "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity",
     "SignOn", "StabilityReport", "StabilityRun", "StateKind", "StateSignature", "Status", "Step",
-    "Strategy", "Success",
-    "SuccessCondition", "Target", "UINode", "Verdict", "apply_overlay", "check_against_app",
-    "render_template",
+    "Strategy", "Success", "SuccessCondition", "Target", "UINode", "Verdict", "apply_overlay",
+    "check_against_app", "describe", "describe_strategy", "render_template",
 ]
