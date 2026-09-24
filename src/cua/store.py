@@ -7,6 +7,7 @@
     catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.json   tenant overlay
     catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.verification.json
     .../<id>@<version>.stability.json    latest stability measurement (next to what it measured)
+    catalog/<app>/capabilities/<id>@<version>.rejection.json      a reviewer's rejection
 
 A capability is only loadable if it fits its app's state library, and only approvable once a
 verification replay has succeeded. Approved artifacts are immutable: changes mean a new
@@ -17,6 +18,7 @@ an approved base (a base that could still change would move under them).
 import json
 import re
 from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -136,10 +138,38 @@ class Store:
                                  "immutable; bump the version")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+        # a new draft at this version is a new thing to review
+        self._path(capability.id, capability.version, ".rejection.json").unlink(missing_ok=True)
         if verification is not None:
             self._path(capability.id, capability.version, ".verification.json").write_text(
                 json.dumps(verification, indent=2, default=str) + "\n")
         return path
+
+    def capability_ids(self) -> list[str]:
+        """Every capability in the catalog, across apps."""
+        found = {m.group(1) for p in self.root.glob("*/capabilities/*.json")
+                 if (m := re.fullmatch(r"(.+)@\d+\.\d+\.\d+\.json", p.name))}
+        return sorted(found)
+
+    def overlays(self, capability_id: str, base_version: str) -> list[CapabilityOverlay]:
+        """Every tenant's overlay for one base version."""
+        folder = self.root / capability_id.split(".")[0] / "tenants"
+        return [CapabilityOverlay.model_validate_json(p.read_text())
+                for p in sorted(folder.glob(f"*/{capability_id}@{base_version}.overlay.json"))]
+
+    def reject(self, capability_id: str, version: str, reviewer: str, reason: str) -> None:
+        """A reviewer turns a draft down. The draft stays, for the record, and can't be
+        approved; rediscovering the goal replaces it."""
+        capability = self.load(capability_id, version)
+        if capability.status is not Status.DRAFT:
+            raise StoreError(f"{capability_id}@{version} is {capability.status}, not draft")
+        self._path(capability_id, version, ".rejection.json").write_text(json.dumps(
+            {"reviewer": reviewer, "reason": reason,
+             "at": datetime.now(UTC).isoformat()}, indent=2) + "\n")
+
+    def rejection(self, capability_id: str, version: str) -> dict[str, Any] | None:
+        path = self._path(capability_id, version, ".rejection.json")
+        return json.loads(path.read_text()) if path.exists() else None
 
     def verification(self, capability_id: str, version: str) -> dict[str, Any] | None:
         path = self._path(capability_id, version, ".verification.json")
@@ -152,6 +182,9 @@ class Store:
         capability = self.load(capability_id, version)
         if capability.status is not Status.DRAFT:
             raise StoreError(f"{capability_id}@{version} is {capability.status}, not draft")
+        if rejected := self.rejection(capability_id, version):
+            raise StoreError(f"{capability_id}@{version} was rejected by "
+                             f"{rejected['reviewer']}: {rejected['reason']}")
         verification = self.verification(capability_id, version)
         if not verification or verification.get("kind") != "success":
             raise StoreError("approval needs a successful verification replay first "

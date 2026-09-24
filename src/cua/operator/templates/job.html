@@ -1,0 +1,36 @@
+{% extends "_layout.html" %}{% set active = "jobs" %}
+{% block title %}{{ job.title }}{% endblock %}
+{% block head %}{% if job.running %}<meta http-equiv="refresh" content="1">{% endif %}{% endblock %}
+{% block body %}
+<h1>{{ job.title }}</h1>
+<p class="meta">started {{ job.started_at.strftime("%H:%M:%S") }}
+  {% if job.finished_at %}· took {{ ((job.finished_at - job.started_at).total_seconds()) | round(1) }} s{% endif %}
+  {% if job.subject %}· <a href="/automations/{{ job.subject }}">the automation</a>{% endif %}</p>
+
+{% if job.running %}
+<div class="card">Working… {% if pending %}<strong><a href="/needs-you">It needs you</a></strong>{% endif %}</div>
+{% elif job.status == "refused" %}
+<div class="card result stopped"><div class="headline">Not started</div>{{ job.error }}</div>
+{% elif job.status == "crashed" %}
+<div class="card result failure"><div class="headline">Something went wrong</div>{{ job.error }}</div>
+{% endif %}
+
+{% if view %}
+<div class="card result {{ view.tone }}">
+  <div class="headline">{{ view.headline }}</div>
+  {% if view.outputs %}<table>{% for label, value in view.outputs %}<tr><td>{{ label }}</td><td><strong>{{ value }}</strong></td></tr>{% endfor %}</table>{% endif %}
+  {% for d in view.details %}<p>{{ d }}</p>{% endfor %}
+  {% if view.advice %}<p><strong>{{ view.advice }}</strong></p>{% endif %}
+  <p class="meta">run {{ job.result[1].run_id }} · evidence kept in {{ job.result[1].evidence_ref }}</p>
+</div>
+{% elif job.kind == "stability" and job.status == "done" %}
+{% set o = job.result %}
+<div class="card result {{ 'success' if o.cleared else 'failure' }}">
+  <div class="headline">{{ o.report.verdict.value | capitalize }}: {{ (o.report.success_rate * 100) | round | int }}% of {{ o.report.runs_total }} runs succeeded</div>
+  <p>{{ o.report.drift_runs }} with drift · {{ o.report.recovery_runs }} needed a recovery · typical run {{ o.report.duration_p50_s }} s</p>
+  <p><strong>{% if o.cleared %}Cleared to run unattended.{% else %}Not cleared: {{ o.reasons | join("; ") }}.{% endif %}</strong></p>
+</div>
+{% endif %}
+
+{% if job.lines %}<h2>Progress</h2><pre class="progress">{{ job.lines | join("\n") }}</pre>{% endif %}
+{% endblock %}

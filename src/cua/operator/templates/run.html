@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}{% set active = "automations" %}
+{% block title %}Run: {{ cap.description }}{% endblock %}
+{% block body %}
+<h1>{{ cap.description }}</h1>
+<p class="meta">version {{ cap.version }}{% if tenant %} · at {{ tenant }}{% endif %} ·
+  <a href="/automations/{{ cap.id }}/{{ cap.version.split('+')[0] }}">see the steps</a></p>
+<form method="post" action="/run/{{ cap.id }}" class="card">
+  <input type="hidden" name="tenant" value="{{ tenant or '' }}">
+  {% set prefix = "in_" %}
+  {% for name, label, spec in input_fields %}{% include "_input.html" %}{% endfor %}
+  <p><button class="primary">Run</button>
+     <span class="meta">You'll be asked here if it needs approval or gets stuck; keep the
+     browser window it opens visible.</span></p>
+</form>
+<h2>It will</h2>
+<ol>{% for s in steps %}<li>{{ s.intent }} <span class="tag {{ s.risk.value }}">{{ s.risk_words }}</span></li>{% endfor %}</ol>
+{% endblock %}

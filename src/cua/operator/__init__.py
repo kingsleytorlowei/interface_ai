@@ -2,6 +2,6 @@
 `cua.control`. The live browser window is the manual-control surface.
 """
 
-from .console import create_console, serve_console
+from .console import add_desk_routes, create_console, desk_page, serve_console
 
-__all__ = ["create_console", "serve_console"]
+__all__ = ["add_desk_routes", "create_console", "desk_page", "serve_console"]

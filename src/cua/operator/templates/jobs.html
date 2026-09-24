@@ -1,0 +1,12 @@
+{% extends "_layout.html" %}{% set active = "jobs" %}
+{% block body %}
+<h1>Activity</h1>
+<p class="meta">What was started from this workbench since it opened. One runs at a time.</p>
+<table>
+  <tr><th>Started</th><th>What</th><th>Status</th></tr>
+  {% for j in jobs %}
+  <tr><td>{{ j.started_at.strftime("%H:%M:%S") }}</td><td><a href="/jobs/{{ j.id }}">{{ j.title }}</a></td>
+      <td>{{ j.status }}</td></tr>
+  {% else %}<tr><td colspan="3" class="meta">Nothing yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

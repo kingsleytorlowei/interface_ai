@@ -1,0 +1,26 @@
+{% extends "_layout.html" %}{% set active = "automations" %}
+{% block body %}
+<h1>Automations</h1>
+<p class="meta">Each one was found by the assistant from a plain-English request, checked by
+replaying it without the assistant, and approved by a person before anyone can run it.</p>
+<table>
+  <tr><th>What it does</th><th>Status</th><th>Unattended</th><th>Other institutions</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/automations/{{ r.id }}/{{ r.latest.version }}">{{ r.description }}</a>
+        <div class="meta">{{ r.id }}</div></td>
+    <td>
+      {% if r.approved %}<span class="tag ok">approved {{ r.approved.version }}</span>{% endif %}
+      {% if r.review == "ready for review" %}<span class="tag warn">draft {{ r.latest.version }}: ready for review</span>
+      {% elif r.review == "rejected" %}<span class="tag bad">draft {{ r.latest.version }}: rejected</span>
+      {% elif r.review %}<span class="tag bad">draft {{ r.latest.version }}: {{ r.review }}</span>{% endif %}
+    </td>
+    <td>{% if r.approved %}{% if r.cleared %}<span class="tag ok">cleared</span>{% else %}<span class="tag muted">needs a person</span>{% endif %}{% endif %}</td>
+    <td>{{ r.tenants | join(", ") }}</td>
+    <td>{% if r.approved %}<a href="/run/{{ r.id }}">Run</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="meta">Nothing yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

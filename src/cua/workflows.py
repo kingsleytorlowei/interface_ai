@@ -149,6 +149,9 @@ def discover_goal(ws: Workspace, goal: Goal, planner: Planner, *, control: Contr
     for note in notes:
         progress(f"  review: {note}")
     outcome.review_notes += notes
+    # Notes name steps and strategies by id and position, never their text, so they are safe
+    # to keep for the reviewer.
+    summary["review_notes"] = outcome.review_notes
     # Refuses an artifact containing any value this run knows to be sensitive.
     outcome.draft_path = store.save(capability, summary, sensitive=redactors)
     outcome.draft, outcome.verification_kind = capability, summary["kind"]

@@ -37,7 +37,24 @@ class OperatorAction(BaseModel):
 
 
 def create_console(desk: OperatorDesk, evidence_root: Path) -> FastAPI:
+    """The console for one CLI run: just the approval and handoff cards."""
     app = FastAPI(title="Operator console", docs_url=None, redoc_url=None)
+    add_desk_routes(app, desk, evidence_root)
+
+    @app.get("/", response_class=HTMLResponse)
+    def page() -> str:
+        return desk_page()
+
+    return app
+
+
+def desk_page(nav: str = "") -> str:
+    """The cards page; the workbench passes its navigation bar in."""
+    return PAGE.replace("<!--NAV-->", nav)
+
+
+def add_desk_routes(app: FastAPI, desk: OperatorDesk, evidence_root: Path) -> None:
+    """The desk's API (state, decisions, pause, take over) and redacted evidence files."""
     evidence_root = evidence_root.resolve()
 
     def decide(fn, *args) -> dict[str, str]:  # type: ignore[no-untyped-def]
@@ -46,10 +63,6 @@ def create_console(desk: OperatorDesk, evidence_root: Path) -> FastAPI:
         except DeskError as e:
             raise HTTPException(409, str(e)) from e
         return {"status": "ok"}
-
-    @app.get("/", response_class=HTMLResponse)
-    def page() -> str:
-        return PAGE
 
     @app.get("/api/state")
     def state() -> dict:  # type: ignore[type-arg]
@@ -84,8 +97,6 @@ def create_console(desk: OperatorDesk, evidence_root: Path) -> FastAPI:
             raise HTTPException(404)
         return FileResponse(path)
 
-    return app
-
 
 def serve_console(desk: OperatorDesk, evidence_root: Path, port: int = 8765) -> str:
     """Start the console on a daemon thread; returns its URL."""
@@ -114,6 +125,7 @@ PAGE = """<!doctype html>
   .irreversible { color: #b00020; font-weight: 600; }
 </style></head>
 <body>
+<!--NAV-->
 <header>
   <strong>Operator console</strong>
   <label>Operator <input id="op" size="12" placeholder="your name"></label>

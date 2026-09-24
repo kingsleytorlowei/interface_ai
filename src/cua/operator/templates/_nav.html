@@ -1,0 +1,24 @@
+<style>
+  nav.wb { display: flex; gap: 18px; align-items: center; padding: 10px 24px; margin: -24px -24px 20px;
+           background: #0f2a44; color: #fff; font: 14px system-ui, sans-serif; }
+  nav.wb a { color: #cfe0f2; text-decoration: none; }
+  nav.wb a.active { color: #fff; font-weight: 600; }
+  nav.wb .badge { background: #c77700; color: #fff; border-radius: 9px; padding: 1px 7px; font-size: 12px; }
+  nav.wb form { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  nav.wb input { width: 140px; }
+  nav.wb .busy { color: #ffd27a; font-size: 12px; }
+</style>
+<nav class="wb">
+  <strong>Operator workbench</strong>
+  <a href="/automations" class="{{ 'active' if active == 'automations' }}">Automations</a>
+  <a href="/jobs" class="{{ 'active' if active == 'jobs' }}">Activity</a>
+  <a href="/needs-you" class="{{ 'active' if active == 'needs-you' }}">Needs you
+    {% if pending %}<span class="badge">{{ pending }}</span>{% endif %}</a>
+  {% if current_job %}<a class="busy" href="/jobs/{{ current_job.id }}">running: {{ current_job.title }}</a>{% endif %}
+  <form method="post" action="/operator">
+    <label for="opname">You are</label>
+    <input id="opname" name="name" value="{{ operator }}" placeholder="your name">
+    <button>Save</button>
+  </form>
+</nav>
+<script>if ({{ operator | tojson }}) localStorage.setItem('operator', {{ operator | tojson }});</script>

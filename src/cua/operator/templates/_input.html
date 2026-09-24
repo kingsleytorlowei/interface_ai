@@ -1,0 +1,12 @@
+{# one input field; expects prefix, name, label, spec #}
+<div style="margin: 4px 0">
+  <span style="display:inline-block; min-width: 220px">{{ label }}</span>
+  {% if spec.enum %}
+    <select name="{{ prefix }}{{ name }}">{% for option in spec.enum %}<option>{{ option }}</option>{% endfor %}</select>
+  {% elif spec.type.value == "money" %}
+    $ <input type="text" name="{{ prefix }}{{ name }}" inputmode="decimal" pattern="^\d+(\.\d{1,2})?$" placeholder="0.00" size="12">
+  {% else %}
+    <input type="text" name="{{ prefix }}{{ name }}" {% if spec.pattern %}pattern="{{ spec.pattern | replace('^', '') | replace('$', '') }}"{% endif %} size="20">
+  {% endif %}
+  {% if spec.sensitivity.value == "pii" %}<span class="tag muted">personal data</span>{% endif %}
+</div>

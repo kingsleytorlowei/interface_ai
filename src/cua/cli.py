@@ -212,5 +212,34 @@ def approve(
                f"by {reviewer}")
 
 
+TENANT_URLS = typer.Option(None, "--tenant", help="A tenant with overlays, as NAME=URL; "
+                                                 "repeat for several")
+
+
+@app.command()
+def console(
+    base_url: str = BASE_URL, tenant_urls: list[str] | None = TENANT_URLS,
+    port: int = typer.Option(8765, help="Port for the workbench"),
+    headless: bool = typer.Option(False, help="Hide the automation's browser window (a "
+                                              "handoff then has nowhere to happen)"),
+) -> None:
+    """Open the operator workbench: review and approve automations, run them, and answer
+    what they ask for, in the browser."""
+    import uvicorn
+
+    from cua.operator.workbench import WorkbenchConfig, create_workbench
+
+    load_dotenv()
+    tenants: dict[str, str] = {}
+    for item in tenant_urls or []:
+        name, sep, url = item.partition("=")
+        if not sep or not name or not url:
+            raise usage_error(f"--tenant takes NAME=URL, not {item!r}")
+        tenants[name] = url
+    config = WorkbenchConfig(Store(CATALOG), EVIDENCE, base_url, tenants, headed=not headless)
+    typer.echo(f"operator workbench: http://127.0.0.1:{port}")
+    uvicorn.run(create_workbench(config), host="127.0.0.1", port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()
