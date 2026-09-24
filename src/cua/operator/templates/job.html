@@ -32,5 +32,28 @@
 </div>
 {% endif %}
 
+{% if job.kind == "discover" and job.status == "done" %}
+{% set o = job.result %}
+{% if o.approvable %}
+<div class="card result success">
+  <div class="headline">Found it: a draft is ready for review</div>
+  <p>{{ o.discovery.turns }} assistant turns, then checked by replaying it {{ o.verification | length }} time{{ "s" if o.verification | length != 1 }} without the assistant.</p>
+  <p><a href="/automations/{{ o.draft.id }}/{{ o.draft.version }}"><strong>Review the draft →</strong></a></p>
+</div>
+{% elif o.draft %}
+<div class="card result failure">
+  <div class="headline">It found a way, but the check didn't pass</div>
+  <p>The draft is kept for the record and can't be approved. {% if o.verification %}The checking replay ended as: {{ o.verification[-1].kind }}.{% endif %}</p>
+  <p><a href="/automations/{{ o.draft.id }}/{{ o.draft.version }}">See the draft</a></p>
+</div>
+{% else %}
+<div class="card result failure">
+  <div class="headline">It didn't find a way to do it</div>
+  <p>{{ o.discovery.reason }}</p>
+</div>
+{% endif %}
+{% if o.review_notes %}<p><strong>Notes for the reviewer</strong></p><ul>{% for n in o.review_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+{% endif %}
+
 {% if job.lines %}<h2>Progress</h2><pre class="progress">{{ job.lines | join("\n") }}</pre>{% endif %}
 {% endblock %}

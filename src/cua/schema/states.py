@@ -131,6 +131,9 @@ class AppModel(Model):
     app_id: Slug
     version: SemVer
     description: str = ""
+    # Where work starts once signed on (a template, e.g. "{{env.base_url}}/main.html"):
+    # new goals begin here.
+    home: str | None = None
     sign_on: SignOn | None = None
     states: dict[Slug, StateSignature]
 

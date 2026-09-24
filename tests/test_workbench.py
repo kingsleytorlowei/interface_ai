@@ -16,6 +16,14 @@ from fastapi.testclient import TestClient
 from conftest import CATALOG, load_capability
 from cua import workflows
 from cua.control import OperatorDesk
+from cua.discovery import (
+    ClaudeContractProposer,
+    ContractProposal,
+    ProposalError,
+    ScriptedPlanner,
+    sensitive_looking,
+)
+from cua.discovery.contract import to_proposal
 from cua.operator import present
 from cua.operator.jobs import JobRunner
 from cua.operator.workbench import WorkbenchConfig, create_workbench
@@ -24,12 +32,15 @@ from cua.schema import (
     Capability,
     Failure,
     FailureCategory,
+    InputSpec,
+    OutputSpec,
     RunResult,
     Status,
     Success,
 )
 from cua.store import Store
 from mock_bank.app import DEMO_PASSWORD, DEMO_USER
+from test_discovery import FINISH, SEARCH, extract, fill
 from test_store import draft
 
 LOOKUP = load_capability("corebank.member.lookup_balance")
@@ -226,3 +237,102 @@ def test_old_single_run_verification_records_still_read(store: Store,
     store.save(LOOKUP, {"kind": "success", "run_id": "r1", "evidence_ref": "evidence/r1"})
     assert "Replayed 1 time without" in text(
         client.get(f"/automations/{LOOKUP.id}/{LOOKUP.version}").text)
+
+
+# --- new automation -------------------------------------------------------------------------
+
+
+def test_requests_with_member_data_are_never_sent() -> None:
+    proposer = ClaudeContractProposer(client=object())  # would fail if it were called
+    with pytest.raises(ProposalError, match="12345"):
+        proposer("Look up member 12345's balance", "corebank", "", [])
+    assert sensitive_looking("card 4111 1111 1111 1111, jane@example.com") == [
+        "1111", "4111", "4111 1111 1111 1111", "jane@example.com"]
+
+
+def test_a_proposal_is_cleaned_of_values_and_bad_rules() -> None:
+    proposal = to_proposal({
+        "title": "Open an account", "name": "corebank.subaccount.open_thing",
+        "inputs": [{"name": "Member ID", "type": "string", "description": "the member",
+                    "sensitivity": "pii", "pattern": "([", "choices": None},
+                   {"name": "product", "type": "string", "description": "which product",
+                    "sensitivity": "secret", "pattern": None,
+                    "choices": ["Holiday Club", "98765"]}],
+        "outputs": [{"name": "confirmation", "type": "string", "description": "number",
+                     "sensitivity": "internal"}],
+        "questions": ["one or many?"]}, "corebank", "open one for member 98765")
+    assert proposal.capability_id == "corebank.subaccount.open_thing"
+    assert list(proposal.inputs) == ["member_id", "product"]
+    assert proposal.inputs["member_id"].pattern is None  # "([" isn't a valid pattern
+    assert proposal.inputs["product"].enum == ["Holiday Club"]  # the request's value removed
+    assert proposal.inputs["product"].sensitivity == "confidential"  # never "secret"
+    assert any("format rule" in w for w in proposal.warnings)
+
+
+def fake_proposer(proposal: ContractProposal) -> Callable[..., ContractProposal]:
+    return lambda request, app_id, description, examples: proposal
+
+
+PROPOSAL = ContractProposal(
+    title="Member balance", capability_id="corebank.member.lookup_balance",
+    inputs={"member_id": InputSpec(type="string", description="5-digit member number",
+                                   sensitivity="pii", pattern=r"^\d{5}$")},
+    outputs={"member_name": OutputSpec(type="string", description="The member's name",
+                                       sensitivity="pii"),
+             "share_savings_balance": OutputSpec(type="money", description="Savings balance",
+                                                 sensitivity="confidential")},
+    questions=["Always exactly 5 digits?"])
+
+
+def contract_form(**overrides: str) -> dict[str, str]:
+    form = {"request": "Look up a member's name and savings balance by member number",
+            "title": "Member balance", "capability_id": "corebank.member.lookup_balance",
+            "incount": "1", "in0_name": "member_id", "in0_type": "string",
+            "in0_description": "5-digit member number", "in0_sensitivity": "pii",
+            "in0_pattern": r"^\d{5}$", "in0_example": "12345", "in0_alt_example": "45678",
+            "outcount": "2", "out0_name": "member_name", "out0_type": "string",
+            "out0_description": "The member's full name", "out0_sensitivity": "pii",
+            "out1_name": "share_savings_balance", "out1_type": "money",
+            "out1_description": "Balance of the member's Share Savings account",
+            "out1_sensitivity": "confidential"}
+    return {**form, **overrides}
+
+
+def test_the_proposal_is_shown_for_the_person_to_correct(store: Store, tmp_path: Path) -> None:
+    config = WorkbenchConfig(store, tmp_path / "evidence", "http://127.0.0.1:1", headed=False,
+                             proposer=fake_proposer(PROPOSAL), planner=lambda: ScriptedPlanner([]))
+    client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))
+    page = client.post("/new", data={"request_text": "Look up a member's balance"}).text
+    assert 'value="member_id"' in page and 'value="share_savings_balance"' in page
+    assert "Always exactly 5 digits?" in text(page)
+    # a missing example is sent back with everything the person typed kept
+    page = client.post("/new/discover", data=contract_form(in0_example="")).text
+    assert "Give an example value for member_id" in text(page)
+    assert 'value="45678"' in page
+
+
+def test_a_new_automation_found_through_the_workbench(
+        tmp_path: Path, store: Store, jobs: JobRunner, bank: Callable[[str], str],
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Request → contract → discovery (scripted, no model) → two checking replays → a draft
+    ready for review, with the progress narrated in plain words."""
+    monkeypatch.setenv("COREBANK_USER", DEMO_USER)
+    monkeypatch.setenv("COREBANK_PASSWORD", DEMO_PASSWORD)
+    script = [fill(), SEARCH, extract("member_name", "Jane Q. Sample"),
+              extract("share_savings_balance", "$4,210.37"), FINISH]
+    config = WorkbenchConfig(store, tmp_path / "evidence", bank("pinnacle"), headed=False,
+                             proposer=fake_proposer(PROPOSAL),
+                             planner=lambda: ScriptedPlanner(script))
+    client = TestClient(create_workbench(config, OperatorDesk(), jobs))
+    response = client.post("/new/discover", data=contract_form(), follow_redirects=False)
+    assert response.status_code == 303, text(response.text)
+    job_id = response.headers["location"].rsplit("/", 1)[1]
+    job = jobs.wait(job_id, timeout_s=120)
+    page = text(client.get(f"/jobs/{job_id}").text)
+    assert job.status == "done", job.error
+    assert "a draft is ready for review" in page
+    assert 'Filled the text box right of "Member ID"' in page
+    assert 'Clicked the button "Search"' in page
+    draft_ = store.load(PROPOSAL.capability_id, "0.1.0")
+    assert draft_.description == "Member balance" and draft_.status is Status.DRAFT
+    assert store.verification(draft_.id, "0.1.0")["kind"] == "success"  # type: ignore[index]

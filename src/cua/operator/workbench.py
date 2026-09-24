@@ -10,6 +10,8 @@ Mock scope, as the console: localhost, no authentication, the operator's name is
 self-declared (a cookie).
 """
 
+import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,10 +20,20 @@ from urllib.parse import quote
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
 from cua import workflows
 from cua.control import OperatorDesk
-from cua.schema import Capability, InputSpec, Status
+from cua.discovery import (
+    ClaudeContractProposer,
+    ClaudePlanner,
+    ContractProposal,
+    ContractProposer,
+    Goal,
+    Planner,
+    ProposalError,
+)
+from cua.schema import Capability, InputSpec, ParamType, Sensitivity, Status
 from cua.store import Store, StoreError
 from cua.workflows import Progress, WorkflowError, Workspace
 
@@ -39,6 +51,19 @@ class WorkbenchConfig:
     base_url: str  # the default tenant: capabilities run as recorded
     tenant_urls: dict[str, str] = field(default_factory=dict)  # tenants with overlays
     headed: bool = True  # handoffs happen in the automation's browser window
+    app_id: str = "corebank"  # the application new automations are discovered in
+    # The LLM parts, replaceable in tests; by default Claude, which needs ANTHROPIC_API_KEY.
+    proposer: ContractProposer | None = None
+    planner: Callable[[], Planner] | None = None
+
+    def llm_ready(self) -> bool:
+        return bool(self.proposer and self.planner) or bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    def propose(self) -> ContractProposer:
+        return self.proposer or ClaudeContractProposer()
+
+    def new_planner(self) -> Planner:
+        return self.planner() if self.planner else ClaudePlanner()
 
     def workspace(self, tenant: str | None = None) -> Workspace:
         url = self.tenant_urls[tenant] if tenant else self.base_url
@@ -57,6 +82,71 @@ def _verification(record: dict[str, Any] | None) -> dict[str, Any] | None:
     runs = [{k: record[k] for k in ("kind", "run_id", "evidence_ref")}] if "run_id" in record \
         else []
     return {**record, "runs": runs}
+
+
+SENSITIVITIES = [s.value for s in Sensitivity if s is not Sensitivity.SECRET]
+TYPES = [t.value for t in ParamType]
+
+
+@dataclass
+class FieldRow:
+    """One input or output row of the contract form, as the person sees and edits it."""
+
+    name: str = ""
+    type: str = "string"
+    description: str = ""
+    sensitivity: str = "internal"
+    pattern: str = ""
+    choices: str = ""  # comma-separated
+    example: str = ""
+    alt_example: str = ""
+
+
+def _rows_from_proposal(proposal: ContractProposal) -> tuple[list[FieldRow], list[FieldRow]]:
+    inputs = [FieldRow(n, s.type.value, s.description, s.sensitivity.value, s.pattern or "",
+                       ", ".join(s.enum or [])) for n, s in proposal.inputs.items()]
+    outputs = [FieldRow(n, s.type.value, s.description, s.sensitivity.value)
+               for n, s in proposal.outputs.items()]
+    return inputs, outputs
+
+
+def _rows_from_form(form: dict[str, Any], prefix: str) -> list[FieldRow]:
+    rows = []
+    for i in range(int(form.get(f"{prefix}count", 0))):
+        values = {key: str(form.get(f"{prefix}{i}_{key}", "")).strip()
+                  for key in ("remove", *FieldRow.__dataclass_fields__)}
+        if values.pop("remove"):
+            continue
+        row = FieldRow(**values)
+        row.type, row.sensitivity = row.type or "string", row.sensitivity or "internal"
+        if row.name or row.description:
+            rows.append(row)
+    return rows
+
+
+def _goal_from_form(form: dict[str, Any], app_id: str, home: str) -> Goal:
+    inputs = {}
+    for row in _rows_from_form(form, "in"):
+        choices = [c.strip() for c in row.choices.split(",") if c.strip()]
+        inputs[row.name] = {
+            "type": row.type, "description": row.description or row.name,
+            "sensitivity": row.sensitivity, "pattern": row.pattern or None,
+            "enum": choices or None, "example": row.example,
+            "alt_example": row.alt_example or None}
+    outputs = {row.name: {"type": row.type, "description": row.description or row.name,
+                          "sensitivity": row.sensitivity}
+               for row in _rows_from_form(form, "out")}
+    return Goal.model_validate({
+        "capability_id": str(form.get("capability_id", "")).strip(),
+        "title": str(form.get("title", "")).strip() or None,
+        "goal": str(form.get("request", "")).strip(), "app": app_id, "entry": home,
+        "inputs": inputs, "outputs": outputs, "max_turns": 25})
+
+
+def _problem(e: ValidationError) -> str:
+    first = e.errors()[0]
+    where = ".".join(str(p) for p in first["loc"] if p != "__root__")
+    return f"{where}: {first['msg']}" if where else first["msg"]
 
 
 def _inputs(form: dict[str, Any], prefix: str, capability: Capability) -> dict[str, str]:
@@ -263,6 +353,92 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
                 config.workspace(tenant), capability, inputs, control=desk, attended=True)
 
         return start(url, "run", capability.description, work, capability_id)
+
+    # --- new automation -----------------------------------------------------------------
+
+    def examples() -> list[dict[str, Any]]:
+        """Existing contracts, for the proposer's naming style: names, types and
+        sensitivity only, never values."""
+        found = []
+        for capability_id in store.capability_ids():
+            try:
+                cap = store.load(capability_id, status=Status.APPROVED)
+            except StoreError:
+                continue
+            found.append({"id": cap.id, "title": cap.description, "inputs": {
+                n: s.model_dump(mode="json", exclude_none=True) for n, s in cap.inputs.items()},
+                "outputs": {n: s.model_dump(mode="json") for n, s in cap.outputs.items()}})
+        return found
+
+    def contract_page(request: Request, *, request_text: str, title: str, capability_id: str,
+                      inputs: list[FieldRow], outputs: list[FieldRow],
+                      questions: list[str] = [], warnings: list[str] = [],  # noqa: B006
+                      problem: str | None = None) -> HTMLResponse:
+        exists = capability_id in store.capability_ids()
+        return render(request, "new_contract.html", request_text=request_text, title=title,
+                      capability_id=capability_id, inputs=[*inputs, FieldRow()],
+                      outputs=[*outputs, FieldRow()], questions=questions, warnings=warnings,
+                      problem=problem, exists=exists, types=TYPES,
+                      sensitivities=SENSITIVITIES)
+
+    @app.get("/new", response_class=HTMLResponse)
+    def new(request: Request) -> HTMLResponse:
+        return render(request, "new.html", request_text="", llm_ready=config.llm_ready())
+
+    @app.post("/new", response_class=HTMLResponse)
+    def propose(request: Request, request_text: str = Form("")) -> HTMLResponse:
+        request_text = request_text.strip()
+        if not request_text:
+            return render(request, "new.html", request_text="", llm_ready=config.llm_ready(),
+                          problem="Describe what the automation should do.")
+        app_model = store.app(config.app_id)
+        try:
+            proposal = config.propose()(request_text, config.app_id, app_model.description,
+                                        examples())
+        except ProposalError as e:
+            return render(request, "new.html", request_text=request_text,
+                          llm_ready=config.llm_ready(), problem=str(e))
+        inputs, outputs = _rows_from_proposal(proposal)
+        return contract_page(request, request_text=request_text, title=proposal.title,
+                             capability_id=proposal.capability_id, inputs=inputs,
+                             outputs=outputs, questions=proposal.questions,
+                             warnings=proposal.warnings)
+
+    @app.post("/new/discover", response_class=HTMLResponse)
+    async def start_discovery(request: Request) -> Response:
+        form = dict(await request.form())
+        app_model = store.app(config.app_id)
+
+        def again(problem: str) -> HTMLResponse:
+            """The same form, as the person filled it in, with what to fix."""
+            return contract_page(
+                request, request_text=str(form.get("request", "")),
+                title=str(form.get("title", "")),
+                capability_id=str(form.get("capability_id", "")),
+                inputs=_rows_from_form(form, "in"), outputs=_rows_from_form(form, "out"),
+                problem=problem)
+
+        try:
+            goal = _goal_from_form(form, config.app_id, app_model.home or "")
+        except ValidationError as e:
+            return again(_problem(e))
+        if not goal.outputs:
+            return again("Add at least one thing it gives back.")
+        if missing := [n for n, spec in goal.inputs.items() if not spec.example]:
+            return again(f"Give an example value for {', '.join(missing)}: discovery tries "
+                         "the automation with it.")
+        if not app_model.home:
+            return again(f"{config.app_id} has no start page configured")
+
+        def work(progress: Progress) -> Any:
+            progress(f"Discovering: {goal.title or goal.goal}")
+            # Attended: if the assistant asks for help, or an action needs approval, it comes
+            # to "Needs you".
+            return workflows.discover_goal(config.workspace(), goal, config.new_planner(),
+                                           control=desk, progress=progress)
+
+        return start("/new", "discover", f"Discover: {goal.title or goal.capability_id}", work,
+                     goal.capability_id)
 
     @app.get("/jobs", response_class=HTMLResponse)
     def job_list(request: Request) -> HTMLResponse:

@@ -1,0 +1,19 @@
+{% extends "_layout.html" %}{% set active = "new" %}
+{% block title %}New automation{% endblock %}
+{% block body %}
+<h1>New automation</h1>
+<p class="meta">Say what you need done in the teller system, in your own words. The assistant
+suggests what it will need from you and what it will give back; you check that, then it finds
+how to do it in the application. Nothing runs for real until a reviewer approves it.</p>
+{% if not llm_ready %}<div class="flash err">The assistant isn't configured (no ANTHROPIC_API_KEY),
+so new automations can't be discovered here. Existing ones can still be reviewed and run.</div>{% endif %}
+{% if problem %}<div class="flash err">{{ problem }}</div>{% endif %}
+<form method="post" action="/new" class="card">
+  <label class="field" for="req">What should it do?</label>
+  <textarea id="req" name="request_text" rows="5" cols="100" required
+    placeholder="e.g. A member called in to confirm which savings account we have on file. Find them by member number and tell me the account number shown for their Share Savings account.">{{ request_text }}</textarea>
+  <p class="meta">Don't include real member numbers, names or amounts here: this text is sent
+  to the assistant. You'll give example values in the next step.</p>
+  <p><button class="primary" {% if not llm_ready %}disabled{% endif %}>Suggest what it needs</button></p>
+</form>
+{% endblock %}

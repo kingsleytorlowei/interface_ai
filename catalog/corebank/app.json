@@ -2,6 +2,7 @@
   "schema_version": "1",
   "app_id": "corebank",
   "version": "1.0.0",
+  "home": "{{env.base_url}}/main.html",
   "description": "CoreOne Teller core-banking system (vendor product). State signatures use vendor-constant text, so they hold across tenant variants; tenant-specific labels live in capability targets.",
   "sign_on": {
     "url": "{{env.base_url}}/login",

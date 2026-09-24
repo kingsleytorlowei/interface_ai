@@ -16,7 +16,7 @@ from typing import Any
 
 from cua.control import ControlPort, InMemoryControl
 from cua.discovery import DiscoveryResult, Goal, Planner, RecordingError, discover, prune_strategies
-from cua.evidence import RunLog
+from cua.evidence import Event, EventKind, RunLog
 from cua.policy import Mode, Policy, Redactor
 from cua.replay import replay as run_replay
 from cua.schema import (
@@ -27,7 +27,9 @@ from cua.schema import (
     StabilityReport,
     StabilityRun,
     Status,
+    Target,
     apply_overlay,
+    describe,
 )
 from cua.secrets import EnvSecrets
 from cua.session import GuardedSession
@@ -57,11 +59,13 @@ class Workspace:
 @contextmanager
 def open_session(ws: Workspace, app_id: str, *, mode: Mode, status: Status | None,
                  control: ControlPort, headed: bool = False, audit_targets: bool = False,
-                 evidence: Path | None = None) -> Iterator[GuardedSession]:
+                 evidence: Path | None = None,
+                 on_event: Callable[[Event], None] | None = None) -> Iterator[GuardedSession]:
     """A fresh browser and evidence directory for one run, behind the guarded session."""
     with ExitStack() as stack:
         surface = stack.enter_context(WebSurface.launch(headless=not (headed or ws.headed)))
-        log = stack.enter_context(RunLog(evidence or ws.evidence, Redactor()))
+        log = stack.enter_context(RunLog(evidence or ws.evidence, Redactor(),
+                                         listeners=[on_event] if on_event else []))
         yield stack.enter_context(GuardedSession.open(
             surface=surface, app=ws.store.app(app_id),
             policy=Policy(ws.store.policy(app_id), [ws.base_url]), control=control, log=log,
@@ -84,6 +88,35 @@ def _summary(runs: list[RunResult]) -> dict[str, Any]:
 
 
 # --- discover -------------------------------------------------------------------------------
+
+_DONE = {"fill": "Filled", "click": "Clicked", "select": "Chose from", "extract": "Read",
+         "press": "Pressed a key in"}
+
+
+def narrate(progress: Progress) -> Callable[[Event], None]:
+    """Discovery as it happens, for a person watching: what the assistant says between
+    turns and each action it took, where, in words. Events arrive redacted."""
+    started: dict[str, str] = {}
+
+    def on_event(event: Event) -> None:
+        data = event.data
+        if event.kind == "llm_turn" and (said := str(data.get("text") or "").strip()):
+            progress(f"assistant: {said[:300]}")
+        elif event.kind == EventKind.ACTION_STARTED and data.get("actor") == "agent":
+            started[event.step_id or ""] = str((data.get("action") or {}).get("kind", ""))
+        elif event.kind == EventKind.ACTION_SUCCEEDED and event.step_id in started:
+            kind = started.pop(event.step_id or "")
+            if kind == "navigate":
+                progress("  opened the start page")
+            elif isinstance(data.get("target"), dict):
+                where = describe(Target.model_validate(data["target"]))
+                progress(f"  {_DONE.get(kind, kind)} the {where}")
+        elif event.kind == EventKind.ACTION_FAILED and event.step_id in started:
+            started.pop(event.step_id or "")
+            progress(f"  that didn't work ({data.get('stage')}); trying something else")
+
+    return on_event
+
 
 
 @dataclass
@@ -109,7 +142,7 @@ def discover_goal(ws: Workspace, goal: Goal, planner: Planner, *, control: Contr
     didn't hold in every run, and save it as a draft (verified or not)."""
     store = ws.store
     with open_session(ws, goal.app, mode=Mode.DISCOVERY, status=None, control=control,
-                      headed=headed) as session:
+                      headed=headed, on_event=narrate(progress)) as session:
         found = discover(goal, session, planner)
     outcome = DiscoveryOutcome(found, str(session.log.dir), review_notes=list(found.review_notes))
     progress(f"discovery: {found.status} ({found.reason}) in {found.turns} turns; "

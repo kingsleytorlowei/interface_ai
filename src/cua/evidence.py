@@ -8,6 +8,7 @@ import hashlib
 import json
 import secrets
 import threading
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -64,8 +65,11 @@ class RunLog:
         <root>/<run_id>/*.json              artifacts and results written by drivers
     """
 
-    def __init__(self, root: Path, redactor: Redactor, run_id: str | None = None) -> None:
+    def __init__(self, root: Path, redactor: Redactor, run_id: str | None = None,
+                 listeners: Iterable[Callable[[Event], None]] = ()) -> None:
         self.run_id = run_id or new_run_id()
+        # Told about each event as written (already redacted): live progress for a UI.
+        self._listeners = list(listeners)
         self.dir = root / self.run_id
         self.dir.mkdir(parents=True, exist_ok=False)
         self.redactor = redactor
@@ -96,7 +100,9 @@ class RunLog:
             )
             self._events.write(event.model_dump_json() + "\n")
             self._events.flush()  # a crashed run still leaves its trail
-            return event
+        for listener in self._listeners:
+            listener(event)
+        return event
 
     def snapshot(
         self,

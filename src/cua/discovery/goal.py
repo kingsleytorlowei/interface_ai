@@ -20,6 +20,7 @@ class GoalInput(InputSpec):
 class Goal(Model):
     capability_id: DottedId
     goal: str
+    title: str | None = None  # a short name for people; the capability's description
     app: Slug
     entry: str  # template, e.g. "{{env.base_url}}/main.html"
     requires_session: bool = True

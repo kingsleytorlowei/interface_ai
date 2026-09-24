@@ -155,7 +155,7 @@ class Recorder:
         return Capability(
             id=self.goal.capability_id,
             version="0.1.0",
-            description=self.goal.goal,
+            description=self.goal.title or self.goal.goal,
             app=AppRef(app_id=self.app.app_id),
             risk=max((s.risk for s in steps), key=lambda r: r.rank),
             entry=Entry(url=self.goal.entry, requires_session=self.goal.requires_session),

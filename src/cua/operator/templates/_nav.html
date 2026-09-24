@@ -11,6 +11,7 @@
 <nav class="wb">
   <strong>Operator workbench</strong>
   <a href="/automations" class="{{ 'active' if active == 'automations' }}">Automations</a>
+  <a href="/new" class="{{ 'active' if active == 'new' }}">New automation</a>
   <a href="/jobs" class="{{ 'active' if active == 'jobs' }}">Activity</a>
   <a href="/needs-you" class="{{ 'active' if active == 'needs-you' }}">Needs you
     {% if pending %}<span class="badge">{{ pending }}</span>{% endif %}</a>

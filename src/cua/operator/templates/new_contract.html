@@ -1,0 +1,61 @@
+{% extends "_layout.html" %}{% set active = "new" %}
+{% block title %}New automation: check the details{% endblock %}
+{% macro row(prefix, i, r, with_values) %}
+<tr>
+  <td><input type="text" name="{{ prefix }}{{ i }}_name" value="{{ r.name }}" size="18" placeholder="name"></td>
+  <td><select name="{{ prefix }}{{ i }}_type">{% for t in types %}<option {% if t == r.type %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></td>
+  <td><input type="text" name="{{ prefix }}{{ i }}_description" value="{{ r.description }}" size="36" placeholder="what it is"></td>
+  <td><select name="{{ prefix }}{{ i }}_sensitivity">{% for s in sensitivities %}<option value="{{ s }}" {% if s == r.sensitivity %}selected{% endif %}>{{ {"pii": "personal data", "confidential": "confidential", "internal": "internal", "public": "public"}[s] }}</option>{% endfor %}</select></td>
+  {% if with_values %}
+  <td><input type="text" name="{{ prefix }}{{ i }}_pattern" value="{{ r.pattern }}" size="10" placeholder="(any)">
+      <input type="text" name="{{ prefix }}{{ i }}_choices" value="{{ r.choices }}" size="14" placeholder="choices, comma-separated"></td>
+  <td><input type="text" name="{{ prefix }}{{ i }}_example" value="{{ r.example }}" size="10"></td>
+  <td><input type="text" name="{{ prefix }}{{ i }}_alt_example" value="{{ r.alt_example }}" size="10"></td>
+  {% endif %}
+  <td>{% if r.name %}<label><input type="checkbox" name="{{ prefix }}{{ i }}_remove" value="1"> remove</label>{% else %}<span class="meta">add</span>{% endif %}</td>
+</tr>
+{% endmacro %}
+{% block body %}
+<h1>Check what it needs and gives back</h1>
+<p class="meta">The assistant suggested this from your request. Correct anything that's wrong:
+people who run the automation rely on exactly this.</p>
+{% if problem %}<div class="flash err">{{ problem }}</div>{% endif %}
+{% for w in warnings %}<div class="flash err">{{ w }}</div>{% endfor %}
+<form method="post" action="/new/discover">
+<input type="hidden" name="request" value="{{ request_text }}">
+<div class="card">
+  <p><strong>Your request:</strong> {{ request_text }}</p>
+  <label class="field">Name</label><input type="text" name="title" value="{{ title }}" size="60">
+  <label class="field">Identifier</label><input type="text" name="capability_id" value="{{ capability_id }}" size="50">
+  {% if exists %}<p class="meta">An automation with this identifier exists: this makes a new draft version of it.</p>{% endif %}
+</div>
+
+<h2>You give it</h2>
+<p class="meta">Examples are used once, to try the automation while it's being found, then
+again to check it. Give two different ones, e.g. two members, so it's checked against both.
+Use test data.</p>
+<input type="hidden" name="incount" value="{{ inputs | length }}">
+<table>
+  <tr><th>Name</th><th>Type</th><th>Description</th><th>Sensitivity</th><th>Format / choices</th><th>Example</th><th>Second example</th><th></th></tr>
+  {% for r in inputs %}{{ row("in", loop.index0, r, true) }}{% endfor %}
+</table>
+
+<h2>It gives back</h2>
+<input type="hidden" name="outcount" value="{{ outputs | length }}">
+<table>
+  <tr><th>Name</th><th>Type</th><th>Description</th><th>Sensitivity</th><th></th></tr>
+  {% for r in outputs %}{{ row("out", loop.index0, r, false) }}{% endfor %}
+</table>
+
+{% if questions %}
+<h2>Worth checking</h2>
+<ul>{% for q in questions %}<li>{{ q }}</li>{% endfor %}</ul>
+<p class="meta">If an answer changes what it needs or gives back, change it above; otherwise
+the reviewer will see how it handles these cases.</p>
+{% endif %}
+
+<p><button class="primary">Find how to do it</button>
+   <span class="meta">The assistant works in the application's browser window (about a minute);
+   you'll see each step here. If it gets stuck it will ask you under "Needs you".</span></p>
+</form>
+{% endblock %}
