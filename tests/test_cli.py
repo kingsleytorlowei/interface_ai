@@ -13,8 +13,9 @@ import pytest
 from pydantic import TypeAdapter
 from typer.testing import CliRunner
 
-from conftest import CATALOG
+from conftest import CATALOG, load_capability
 from cua import cli
+from cua.control import InMemoryControl
 from cua.schema import Capability, RunResult
 from cua.store import Store
 from test_overlay import overlay
@@ -44,8 +45,8 @@ def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Store:
 @pytest.fixture
 def replayed(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Fakes the session and the replay; records which capability was replayed and returns
-    the result kind set in `replayed["kind"]`."""
-    seen: dict[str, Any] = {"kind": "success"}
+    the result kind set in `replayed["kind"]` (or, in turn, those in `replayed["kinds"]`)."""
+    seen: dict[str, Any] = {"kind": "success", "kinds": []}
 
     @contextmanager
     def fake_session(*args: Any, **kwargs: Any) -> Iterator[None]:
@@ -53,14 +54,22 @@ def replayed(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     def fake_replay(capability: Capability, params: dict[str, Any], session: Any) -> Any:
         seen["capability"] = capability
+        kind = seen["kinds"].pop(0) if seen["kinds"] else seen["kind"]
         return TypeAdapter(RunResult).validate_python({
-            "kind": seen["kind"], "run_id": "r", "capability_id": capability.id,
+            "kind": kind, "run_id": "r", "capability_id": capability.id,
             "capability_version": capability.version, "started_at": NOW, "finished_at": NOW,
-            "evidence_ref": "evidence/r", **RESULTS[seen["kind"]]})
+            "evidence_ref": "evidence/r", **RESULTS[kind]})
 
     monkeypatch.setattr(cli, "open_session", fake_session)
     monkeypatch.setattr(cli, "run_replay", fake_replay)
     return seen
+
+
+@pytest.fixture
+def cleared(monkeypatch: pytest.MonkeyPatch) -> None:
+    """For tests about something else: every capability counts as cleared for unattended
+    replay (the gate has its own tests below)."""
+    monkeypatch.setattr(cli, "clearance", lambda *args: [])
 
 
 def approved_then_newer_draft(store: Store) -> None:
@@ -69,6 +78,7 @@ def approved_then_newer_draft(store: Store) -> None:
     store.save(draft().model_copy(update={"version": "0.1.1"}))
 
 
+@pytest.mark.usefixtures("cleared")
 def test_replay_defaults_to_the_latest_approved_version(store: Store,
                                                          replayed: dict[str, Any]) -> None:
     approved_then_newer_draft(store)
@@ -88,6 +98,7 @@ def test_replay_without_an_approved_version_is_a_usage_error(store: Store,
     assert "capability" not in replayed
 
 
+@pytest.mark.usefixtures("cleared")
 @pytest.mark.parametrize("kind,code", [("success", 0), ("failure", 1),
                                        ("business_outcome", 3), ("aborted", 4)])
 def test_exit_code_mirrors_the_result_kind(store: Store, replayed: dict[str, Any],
@@ -124,6 +135,7 @@ def test_discover_needs_a_key_before_opening_anything(
     assert result.exit_code == 2 and "ANTHROPIC_API_KEY" in result.output
 
 
+@pytest.mark.usefixtures("cleared")
 def test_replay_with_a_tenant_applies_only_its_approved_overlay(
         store: Store, replayed: dict[str, Any]) -> None:
     approved_then_newer_draft(store)
@@ -147,3 +159,52 @@ def test_approving_an_overlay(store: Store) -> None:
     result = runner.invoke(cli.app, args)
     assert result.exit_code == 0, result.output
     assert store.overlay("riverbend", CAP, "0.1.0").status == "approved"  # type: ignore[union-attr]
+
+
+# --- unattended clearance ---------------------------------------------------------------------
+
+LOOKUP_PARAMS = ["--params", '{"member_id": "12345"}']
+
+
+def test_unattended_replay_needs_a_stability_report(store: Store, replayed: dict[str, Any],
+                                                    monkeypatch: pytest.MonkeyPatch) -> None:
+    approved_then_newer_draft(store)
+    result = runner.invoke(cli.app, ["replay", CAP, *LOOKUP_PARAMS])
+    assert result.exit_code == 2 and "no stability report" in result.output
+    assert "capability" not in replayed
+    # with a person watching, approved is enough
+    monkeypatch.setattr(cli, "operator_control", lambda mode: (InMemoryControl(), False))
+    result = runner.invoke(cli.app, ["replay", CAP, *LOOKUP_PARAMS, "--operator", "console"])
+    assert result.exit_code == 0 and replayed["capability"].version == "0.1.0"
+
+
+def test_a_stable_measurement_clears_unattended_replay(store: Store,
+                                                       replayed: dict[str, Any]) -> None:
+    approved_then_newer_draft(store)
+    result = runner.invoke(cli.app, ["stability", CAP, *LOOKUP_PARAMS,
+                                     "--params", '{"member_id": "45678"}'])
+    assert result.exit_code == 0, result.output
+    assert "stable: 100% success over 10 runs" in result.output
+    report = store.stability(CAP, "0.1.0")
+    assert report is not None and [r.params_set for r in report.runs[:3]] == [0, 1, 0]
+    assert runner.invoke(cli.app, ["replay", CAP, *LOOKUP_PARAMS]).exit_code == 0
+
+
+def test_a_flaky_measurement_is_saved_but_does_not_clear(store: Store,
+                                                          replayed: dict[str, Any]) -> None:
+    approved_then_newer_draft(store)
+    replayed["kinds"] = ["success", "failure"] * 5
+    result = runner.invoke(cli.app, ["stability", CAP, *LOOKUP_PARAMS])
+    assert result.exit_code == 1 and "flaky: 50% success" in result.output
+    assert "succeeded 5/10" in result.output
+    assert store.stability(CAP, "0.1.0").verdict == "flaky"  # type: ignore[union-attr]
+    assert runner.invoke(cli.app, ["replay", CAP, *LOOKUP_PARAMS]).exit_code == 2
+
+
+def test_irreversible_capabilities_are_never_measured(store: Store,
+                                                      replayed: dict[str, Any]) -> None:
+    cap = load_capability("corebank.subaccount.open")
+    store.save(cap)
+    result = runner.invoke(cli.app, ["stability", cap.id, "--params", "{}"])
+    assert result.exit_code == 2 and "irreversible" in result.output
+    assert "capability" not in replayed

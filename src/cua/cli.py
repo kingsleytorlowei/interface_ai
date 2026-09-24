@@ -4,6 +4,7 @@ import json
 import os
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,18 @@ from cua.evidence import RunLog
 from cua.operator import serve_console
 from cua.policy import Mode, Policy, Redactor
 from cua.replay import replay as run_replay
-from cua.schema import Capability, Risk, RunResult, Status, apply_overlay
+from cua.schema import (
+    Capability,
+    Risk,
+    RunResult,
+    StabilityReport,
+    StabilityRun,
+    Status,
+    apply_overlay,
+)
 from cua.secrets import EnvSecrets
 from cua.session import GuardedSession
+from cua.stability import clearance
 from cua.store import Store, StoreError
 from cua.surface.web import WebSurface
 
@@ -67,10 +77,11 @@ def load_dotenv(path: Path = Path(".env")) -> None:
 @contextmanager
 def open_session(store: Store, app_id: str, base_url: str, *, mode: Mode,
                  status: Status | None, control: ControlPort, headed: bool,
-                 audit_targets: bool = False) -> Iterator[GuardedSession]:
+                 audit_targets: bool = False,
+                 evidence: Path | None = None) -> Iterator[GuardedSession]:
     with ExitStack() as stack:
         surface = stack.enter_context(WebSurface.launch(headless=not headed))
-        log = stack.enter_context(RunLog(EVIDENCE, Redactor()))
+        log = stack.enter_context(RunLog(evidence or EVIDENCE, Redactor()))
         yield stack.enter_context(GuardedSession.open(
             surface=surface, app=store.app(app_id),
             policy=Policy(store.policy(app_id), [base_url]), control=control, log=log,
@@ -189,6 +200,11 @@ def replay(
         capability: Capability = store.load(
             capability_id, version, status=None if version else Status.APPROVED, tenant=tenant)
     inputs = parse_params(params)
+    if operator == "unattended" and (reasons := clearance(
+            capability, store.stability(capability.id, capability.version),
+            store.policy(capability.app.app_id).unattended, datetime.now(UTC))):
+        raise usage_error("not cleared for unattended replay: " + "; ".join(reasons)
+                          + ". Run it with --operator console, where a person can step in.")
     control, needs_window = operator_control(operator)
     with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
                       status=capability.status, control=control,
@@ -196,6 +212,54 @@ def replay(
         result = run_replay(capability, inputs, session)
     show(result)
     raise typer.Exit(EXIT_CODES[result.kind])
+
+
+@app.command()
+def stability(
+    capability_id: str, tenant: str | None = TENANT,
+    runs: int = typer.Option(10, min=1, help="How many replays"),
+    params: list[str] = PARAM_SETS, base_url: str = BASE_URL, headed: bool = HEADED,
+) -> None:
+    """Measure how reliably the approved capability (with the tenant's overlay) replays:
+    N unattended runs, cycling through the --params sets. Saves the report that clears it
+    for unattended replay, or says why not (exit 1)."""
+    load_dotenv()
+    store = Store(CATALOG)
+    with store_errors():
+        capability = store.load(capability_id, status=Status.APPROVED, tenant=tenant)
+    if capability.risk is Risk.IRREVERSIBLE:
+        raise usage_error("it has irreversible steps: every run needs a person's approval, so "
+                          "it is never unattended, and measuring would repeat real commits")
+    param_sets = [parse_params(p) for p in params]
+    measured_at = datetime.now(UTC)
+    evidence = (EVIDENCE / "stability" /
+                f"{capability.id}@{capability.version}-{measured_at:%Y%m%dT%H%M%SZ}")
+    records: list[StabilityRun] = []
+    for i in range(runs):
+        with open_session(store, capability.app.app_id, base_url, mode=Mode.REPLAY,
+                          status=capability.status, control=InMemoryControl(),
+                          headed=headed, evidence=evidence) as session:
+            result = run_replay(capability, param_sets[i % len(param_sets)], session)
+        records.append(StabilityRun(
+            run_id=result.run_id, evidence_ref=result.evidence_ref,
+            params_set=i % len(param_sets), kind=result.kind,
+            category=getattr(result, "category", None), step_id=getattr(result, "step_id", None),
+            drift_targets=sorted({d.target for d in result.drift}),
+            recoveries=[r.recovery for r in result.recoveries],
+            duration_s=round((result.finished_at - result.started_at).total_seconds(), 2)))
+        typer.echo(f"run {i + 1}/{runs}: {result.kind}")
+    report = StabilityReport.from_runs(capability.id, capability.version, tenant, measured_at,
+                                       records)
+    path = store.save_stability(report)
+    typer.echo(f"{report.verdict}: {report.success_rate:.0%} success over {report.runs_total} "
+               f"runs, {report.drift_runs} with drift, {report.recovery_runs} with recoveries, "
+               f"p50 {report.duration_p50_s}s; saved {path}")
+    reasons = clearance(capability, report, store.policy(capability.app.app_id).unattended,
+                        datetime.now(UTC))
+    if reasons:
+        typer.echo("not cleared for unattended replay: " + "; ".join(reasons))
+        raise typer.Exit(1)
+    typer.echo("cleared for unattended replay")
 
 
 @app.command(name="verify-overlay")

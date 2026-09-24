@@ -1,0 +1,19 @@
+{
+  "run_id": "20260924T164942Z-21d775",
+  "capability_id": "corebank.subaccount.prepare",
+  "capability_version": "0.1.0+riverbend",
+  "started_at": "2026-09-24T16:49:42.773291Z",
+  "finished_at": "2026-09-24T16:49:47.198670Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_continue_button"
+  ],
+  "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0+riverbend-20260924T164917Z/20260924T164942Z-21d775",
+  "kind": "success",
+  "outputs": {
+    "account_type": "Money Market",
+    "initial_deposit": "\u00abinputs.initial_deposit\u00bb"
+  }
+}

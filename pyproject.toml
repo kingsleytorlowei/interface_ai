@@ -99,6 +99,15 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "stability clearance is a pure decision: no I/O, no surface, no drivers"
+type = "forbidden"
+source_modules = ["cua.stability"]
+forbidden_modules = [
+    "cua.surface", "cua.session", "cua.control", "cua.evidence", "cua.store", "cua.apps",
+    "cua.discovery", "cua.replay", "cua.operator", "cua.cli", "playwright", "anthropic",
+]
+
+[[tool.importlinter.contracts]]
 name = "control and evidence know nothing about the surface or drivers"
 type = "forbidden"
 source_modules = ["cua.control", "cua.evidence", "cua.secrets"]

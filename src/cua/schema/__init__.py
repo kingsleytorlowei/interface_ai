@@ -42,6 +42,7 @@ from .results import (
     RunResult,
     Success,
 )
+from .stability import StabilityReport, StabilityRun, Verdict
 from .states import AppModel, Predicate, Recovery, SignOn, StateKind, StateSignature
 from .targets import Fingerprint, FrameSelector, Strategy, Target
 
@@ -53,7 +54,8 @@ __all__ = [
     "Navigate", "Observation", "OutcomeSpec", "OutputSpec", "OverlayProvenance", "ParamType",
     "Predicate", "Press",
     "Provenance", "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity",
-    "SignOn", "StateKind", "StateSignature", "Status", "Step", "Strategy", "Success",
-    "SuccessCondition", "Target", "UINode", "apply_overlay", "check_against_app",
+    "SignOn", "StabilityReport", "StabilityRun", "StateKind", "StateSignature", "Status", "Step",
+    "Strategy", "Success",
+    "SuccessCondition", "Target", "UINode", "Verdict", "apply_overlay", "check_against_app",
     "render_template",
 ]

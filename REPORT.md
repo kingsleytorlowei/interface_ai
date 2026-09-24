@@ -13,10 +13,11 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 | Lookup | 5 turns, ~30 s, ~$0.10 (10 input / 21,472 cache-read / 8,576 cache-write / 1,284 output tokens) |
 | Sub-account form flow | 9 turns, ~55 s (18 / 59,866 / 12,646 / 1,712) |
 | Drafts stopped before approval | 2 of 5, both caught by verification or review: a mis-mapped outcome, and a member's name inside a fallback locator |
-| Stability | lookup attempts 2 and 3 produced structurally identical artifacts |
+| Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus a tenant overlay: all 4 lookup targets and 2 of 8 form targets replaced |
+| Replay stability | 4 × 10 unattended replays (2 capabilities × 2 tenants): all `stable`, no drift; p50 2.8 s (lookup), 4.5 s (form) |
 | Replay | no LLM; a few seconds per run including sign-on |
-| Tests | 196 (real Chromium against the mock bank), 8 import-linter contracts |
+| Tests | 216 (real Chromium against the mock bank), 9 import-linter contracts |
 
 ## 1. Architecture
 
@@ -52,7 +53,8 @@ Key decisions:
   and names the business outcomes.
 - **Nothing the model produced runs unattended before a person signs off.** A draft is
   verified by replaying it twice without the LLM (§3); approval is refused without a
-  successful verification; approved versions are immutable.
+  successful verification; approved versions are immutable. Approval then allows attended
+  replay; running with nobody watching also needs a measured stability report (§6).
 - **One process, synchronous**, with every seam a protocol (`Surface`, `ControlPort`,
   `Planner`); the cost is one live session per process (§7).
 
@@ -263,6 +265,30 @@ chose approval over blocking because banks need these actions done; at this matu
 should happen unattended. Discovery stops before commits by design: the sub-account flow ends
 on the review screen and the policy refused *Confirm* when a scripted model tried it.
 
+**Unattended use is measured, not granted.** Approval is a person's judgement of what a
+capability does; whether it may run with nobody watching is a separate question about how
+reliably it does it. `cua stability` replays an approved capability ten times unattended,
+cycling through two input sets, and writes a report next to it: a verdict (`stable`,
+`drifting`, `flaky`, `broken`), success rate, whether identical inputs always gave the same
+result, runs that needed a fallback strategy, runs with recoveries, and durations. Its summary
+is re-derived from the runs on load, so a report can't claim more than its runs show.
+Unattended `replay` checks it before opening a browser, against the app's thresholds in
+`policy.json`: at least 10 runs, every one successful, none drifting, measured within 30
+days. Anything short of that exits 2 with the reason; `--operator console` still runs on
+approval alone, because a person can step in. Recoveries are reported but not held against
+the score, since they are the app misbehaving and the engine coping as designed. The report
+is keyed by the exact version that runs, so a new base version or a tenant's overlay
+(`0.1.0+riverbend`) starts uncleared. Capabilities with irreversible steps are never measured
+or cleared: each of those runs needs a person anyway, and measuring would repeat real commits.
+This is a run-level check before the session exists, not a policy rule: the per-action policy
+has no notion of whether anyone is watching.
+
+All four combinations (two capabilities, two tenants) measured `stable`, 10/10 with no drift.
+That says little, since the mock is deterministic; the tests are what show the gate refusing
+flaky, broken, drifting, short and stale measurements. In production the score would come
+from a rolling window of real replays rather than a batch, and the first drift signal or
+unexpected failure would remove clearance.
+
 **Secrets and data.** Credentials are `env:` references resolved at the last moment and never
 reach the model, artifacts or logs; password fields are masked in screenshots. Redaction is
 value-based at every sink: declared-sensitive inputs, extracted outputs and secrets are
@@ -298,11 +324,13 @@ Deliberately left out:
 - **LLM limits**: a turn budget per discovery, but no cost or rate limits and no run-level
   deadline; one provider behind the `Planner` protocol.
 - **On-screen data detection**: undeclared data in snapshots (§6).
-- **Stretch goals**: cross-tenant reuse with per-variant overrides (§4), and the draft →
-  approved gate from "confidence & approval", without a reliability score.
+- **Stretch goals**: two, as the brief suggests: cross-tenant reuse with per-variant
+  overrides (§4), and confidence & approval (the draft → approved gate, plus a measured
+  stability score that clears approved capabilities for unattended replay, §6). The score
+  is a batch measurement, not a rolling window over real runs.
 
 Next, in order: drift-triggered, scoped discovery that drafts overlays; exposing approved
 capabilities as a typed tool catalog for agents; entity detection on screens before snapshots
-and transcripts are written; sandbox-tenant verification for irreversible flows; a replay
-stability score across repeated runs to gate unattended use; then queue-backed workers with
-one session each.
+and transcripts are written; sandbox-tenant verification for irreversible flows; stability
+from a rolling window of production replays, with clearance revoked on drift; then
+queue-backed workers with one session each.

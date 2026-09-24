@@ -1,0 +1,128 @@
+{
+  "schema_version": "1",
+  "capability_id": "corebank.subaccount.prepare",
+  "version": "0.1.0",
+  "tenant": null,
+  "measured_at": "2026-09-24T16:47:48.507489Z",
+  "runs": [
+    {
+      "run_id": "20260924T164748Z-5a847d",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164748Z-5a847d",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.37
+    },
+    {
+      "run_id": "20260924T164753Z-405628",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164753Z-405628",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.42
+    },
+    {
+      "run_id": "20260924T164758Z-2f93a1",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164758Z-2f93a1",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.42
+    },
+    {
+      "run_id": "20260924T164803Z-9e4578",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164803Z-9e4578",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.45
+    },
+    {
+      "run_id": "20260924T164808Z-32b0a4",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164808Z-32b0a4",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.43
+    },
+    {
+      "run_id": "20260924T164813Z-08f747",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164813Z-08f747",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.44
+    },
+    {
+      "run_id": "20260924T164818Z-f6f6ea",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164818Z-f6f6ea",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.46
+    },
+    {
+      "run_id": "20260924T164822Z-94ec3d",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164822Z-94ec3d",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.39
+    },
+    {
+      "run_id": "20260924T164827Z-907a41",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164827Z-907a41",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.43
+    },
+    {
+      "run_id": "20260924T164832Z-5ad58e",
+      "evidence_ref": "evidence/stability/corebank.subaccount.prepare@0.1.0-20260924T164748Z/20260924T164832Z-5ad58e",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 4.45
+    }
+  ],
+  "runs_total": 10,
+  "success_rate": 1.0,
+  "consistent": true,
+  "drift_runs": 0,
+  "recovery_runs": 0,
+  "failures": {},
+  "duration_p50_s": 4.43,
+  "duration_max_s": 4.46,
+  "verdict": "stable"
+}

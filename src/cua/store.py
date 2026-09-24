@@ -6,6 +6,7 @@
     catalog/<app>/capabilities/<id>@<version>.verification.json   verification replay result
     catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.json   tenant overlay
     catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.verification.json
+    .../<id>@<version>.stability.json    latest stability measurement (next to what it measured)
 
 A capability is only loadable if it fits its app's state library, and only approvable once a
 verification replay has succeeded. Approved artifacts are immutable: changes mean a new
@@ -14,6 +15,7 @@ an approved base (a base that could still change would move under them).
 """
 
 import json
+import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ from cua.schema import (
     Capability,
     CapabilityOverlay,
     Risk,
+    StabilityReport,
     Status,
     apply_overlay,
     check_against_app,
@@ -50,9 +53,9 @@ class Store:
 
     def versions(self, capability_id: str) -> list[str]:
         folder = self.root / capability_id.split(".")[0] / "capabilities"
-        found = [p.name[len(capability_id) + 1:-len(".json")]
-                 for p in folder.glob(f"{capability_id}@*.json")
-                 if not p.name.endswith(".verification.json")]
+        found = [m.group(1) for p in folder.glob(f"{capability_id}@*.json")
+                 if (m := re.fullmatch(rf"{re.escape(capability_id)}@(\d+\.\d+\.\d+)\.json",
+                                       p.name))]
         return sorted(found, key=lambda v: tuple(int(x) for x in v.split(".")))
 
     def next_draft_version(self, capability_id: str) -> str:
@@ -237,3 +240,24 @@ class Store:
         })
         self.save_overlay(approved)
         return approved
+
+    # stability -----------------------------------------------------------------------------
+
+    def _stability_path(self, capability_id: str, version: str) -> Path:
+        """Beside what was measured: the capability, or for `0.1.0+riverbend` the overlay."""
+        base, _, tenant = version.partition("+")
+        if tenant:
+            return self._overlay_path(tenant, capability_id, base, ".stability.json")
+        return self._path(capability_id, version, ".stability.json")
+
+    def stability(self, capability_id: str, version: str) -> StabilityReport | None:
+        path = self._stability_path(capability_id, version)
+        return StabilityReport.model_validate_json(path.read_text()) if path.exists() else None
+
+    def save_stability(self, report: StabilityReport) -> Path:
+        """The latest measurement replaces the previous one; the runs behind each stay in
+        evidence."""
+        path = self._stability_path(report.capability_id, report.version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(report.model_dump_json(indent=2) + "\n")
+        return path

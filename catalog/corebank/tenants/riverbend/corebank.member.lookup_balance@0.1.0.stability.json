@@ -1,0 +1,128 @@
+{
+  "schema_version": "1",
+  "capability_id": "corebank.member.lookup_balance",
+  "version": "0.1.0+riverbend",
+  "tenant": "riverbend",
+  "measured_at": "2026-09-24T16:48:44.566071Z",
+  "runs": [
+    {
+      "run_id": "20260924T164844Z-bce039",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164844Z-bce039",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.94
+    },
+    {
+      "run_id": "20260924T164848Z-d830dc",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164848Z-d830dc",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.86
+    },
+    {
+      "run_id": "20260924T164851Z-e8433e",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164851Z-e8433e",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.89
+    },
+    {
+      "run_id": "20260924T164855Z-ba91f3",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164855Z-ba91f3",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.86
+    },
+    {
+      "run_id": "20260924T164858Z-8f8355",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164858Z-8f8355",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.82
+    },
+    {
+      "run_id": "20260924T164901Z-825377",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164901Z-825377",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.77
+    },
+    {
+      "run_id": "20260924T164904Z-098582",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164904Z-098582",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.79
+    },
+    {
+      "run_id": "20260924T164907Z-e3d177",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164907Z-e3d177",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.79
+    },
+    {
+      "run_id": "20260924T164911Z-6ebcd1",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164911Z-6ebcd1",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.78
+    },
+    {
+      "run_id": "20260924T164914Z-950f25",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164914Z-950f25",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.85
+    }
+  ],
+  "runs_total": 10,
+  "success_rate": 1.0,
+  "consistent": true,
+  "drift_runs": 0,
+  "recovery_runs": 0,
+  "failures": {},
+  "duration_p50_s": 2.83,
+  "duration_max_s": 2.94,
+  "verdict": "stable"
+}

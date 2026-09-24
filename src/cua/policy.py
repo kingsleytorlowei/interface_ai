@@ -57,6 +57,16 @@ ACTION_KINDS: tuple[str, ...] = tuple(
     cls.model_fields["kind"].default for cls in get_args(get_args(Action)[0]))
 
 
+class UnattendedThresholds(Model):
+    """What a stability report must show before an approved capability may run with no
+    person watching (see `cua.stability`)."""
+
+    min_runs: int = Field(default=10, gt=0)
+    min_success_rate: float = Field(default=1.0, ge=0, le=1)
+    max_drift_runs: int = Field(default=0, ge=0)
+    max_age_days: int = Field(default=30, gt=0)
+
+
 class PolicyConfig(Model):
     """Per-app guardrails, reviewable next to the app's state library. Allowed origins are
     per-tenant runtime configuration (each institution hosts the app somewhere else) and are
@@ -73,6 +83,7 @@ class PolicyConfig(Model):
     irreversible_patterns: list[str] = []
     max_actions: int = Field(default=200, gt=0)
     max_irreversible: int = Field(default=1, ge=0)
+    unattended: UnattendedThresholds = UnattendedThresholds()
 
     @field_validator("allowed_paths", "denied_paths")
     @classmethod

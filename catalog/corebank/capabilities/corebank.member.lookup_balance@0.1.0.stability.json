@@ -1,0 +1,128 @@
+{
+  "schema_version": "1",
+  "capability_id": "corebank.member.lookup_balance",
+  "version": "0.1.0",
+  "tenant": null,
+  "measured_at": "2026-09-24T16:47:14.861328Z",
+  "runs": [
+    {
+      "run_id": "20260924T164715Z-034650",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164715Z-034650",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.98
+    },
+    {
+      "run_id": "20260924T164719Z-68f9cc",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164719Z-68f9cc",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.9
+    },
+    {
+      "run_id": "20260924T164722Z-7986d2",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164722Z-7986d2",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.81
+    },
+    {
+      "run_id": "20260924T164725Z-2c17b3",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164725Z-2c17b3",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.83
+    },
+    {
+      "run_id": "20260924T164728Z-d79a53",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164728Z-d79a53",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.85
+    },
+    {
+      "run_id": "20260924T164732Z-408929",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164732Z-408929",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.82
+    },
+    {
+      "run_id": "20260924T164735Z-7f53c6",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164735Z-7f53c6",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.82
+    },
+    {
+      "run_id": "20260924T164738Z-d536f1",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164738Z-d536f1",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.82
+    },
+    {
+      "run_id": "20260924T164741Z-b2c253",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164741Z-b2c253",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.82
+    },
+    {
+      "run_id": "20260924T164745Z-4ea880",
+      "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0-20260924T164714Z/20260924T164745Z-4ea880",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.81
+    }
+  ],
+  "runs_total": 10,
+  "success_rate": 1.0,
+  "consistent": true,
+  "drift_runs": 0,
+  "recovery_runs": 0,
+  "failures": {},
+  "duration_p50_s": 2.82,
+  "duration_max_s": 2.98,
+  "verdict": "stable"
+}

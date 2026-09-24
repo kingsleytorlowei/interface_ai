@@ -24,11 +24,12 @@ enforced by import-linter contracts (see [Tests & contracts](#tests--contracts))
 | `cua.evidence` | Run directories, redacted JSONL event log, failure snapshots. |
 | `cua.secrets` | Resolves `env:NAME` credential references at the last moment; values never reach artifacts or logs. |
 | `cua.apps` | Per-app knowledge shared across capabilities: the state library (error pages, interstitials, notices). |
-| `cua.store` | Artifacts under `catalog/`: versions, tenant overlays, and the draft → verified → approved gate. |
+| `cua.store` | Artifacts under `catalog/`: versions, tenant overlays, stability reports, and the draft → verified → approved gate. |
+| `cua.stability` | Clearance for unattended replay: an approved capability's stability report against the app's thresholds. Pure. |
 | `cua.discovery` | The LLM observe → decide → act loop and the recorder that turns actions into parameterized steps. The only place an LLM is used. |
 | `cua.replay` | Deterministic step execution, state classification, recovery, and the typed result. Never uses an LLM. |
 | `cua.operator` | Operator console (web) over `cua.control`: approvals, handoffs, pause, take over. |
-| `cua.cli` | Composition root: `cua discover`, `cua approve`, `cua replay`, `cua verify-overlay`. |
+| `cua.cli` | Composition root: `cua discover`, `cua approve`, `cua replay`, `cua verify-overlay`, `cua stability`. |
 | `mock_bank` | The target: a deliberately legacy mock core-banking app with two tenant variants. |
 
 ## Setup
@@ -91,8 +92,30 @@ uv run cua approve corebank.member.lookup_balance 0.1.1 --reviewer "Your Name" \
 approved corebank.member.lookup_balance@0.1.1 (risk read_only) by Your Name
 ```
 
+Approved means a person agrees with *what* it does. Running with nobody watching also needs
+evidence of *how reliably* it does it: replay it ten times unattended, cycling through two
+members. The report is saved next to the artifact and checked against the thresholds in
+`catalog/corebank/policy.json` (`unattended`: 10 runs, all successful, no drift, measured
+within 30 days).
+
+```bash
+uv run cua stability corebank.member.lookup_balance \
+  --params '{"member_id": "12345"}' --params '{"member_id": "45678"}'
+```
+```
+run 1/10: success
+...
+stable: 100% success over 10 runs, 0 with drift, 0 with recoveries, p50 2.82s; saved catalog/corebank/capabilities/corebank.member.lookup_balance@0.1.1.stability.json
+cleared for unattended replay
+```
+
+Skip this and step 4 stops before opening a browser (exit 2): `not cleared for unattended
+replay: no stability report for corebank.member.lookup_balance@0.1.1; run cua stability`.
+With `--operator console`, where a person can step in, approval alone is enough.
+
 **4. Replay with params: happy path.** No LLM from here on. Replay runs the latest
-*approved* version; a draft only runs if you name it with `--version`.
+*approved* version, unattended only once it is cleared; a draft only runs if you name it
+with `--version`, and then only with `--operator console`.
 
 ```bash
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}'
@@ -110,7 +133,7 @@ uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"
 
 The JSON result is the contract; the exit code mirrors its `kind` for shell callers:
 `0` success, `1` failure, `3` business outcome, `4` aborted, `2` usage error (bad params,
-unknown capability or version, missing key).
+unknown capability or version, missing key, not cleared for unattended replay).
 
 **5. A business outcome.** An unknown member is a result the caller handles, not an error
 (exit code 3).
@@ -259,7 +282,8 @@ local mock app.
   app run against mock-bank servers the test session starts itself.
 - **Demo steps 4–9** run against the approved artifacts checked into
   `catalog/corebank/capabilities/` (both `0.1.0`, from the real discovery runs) and the
-  approved Riverbend overlays in `catalog/corebank/tenants/`. Skip steps 2–3 and they report
+  approved Riverbend overlays in `catalog/corebank/tenants/`, each with a committed
+  stability report that clears it for unattended replay. Skip steps 2–3 and they report
   `"capability_version": "0.1.0"` (`"0.1.0+riverbend"` in step 9).
 - **`uv run python scripts/record_evidence.py`** starts its own mock banks and re-records
   every run that needs neither a model nor a human (happy path, not found, four recoveries,
@@ -316,8 +340,8 @@ sign-on (`recorded/03b`, `07a`).
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 196 tests, about 3 min (real Chromium against the mock bank)
-uv run lint-imports      # 8 architectural contracts
+uv run pytest            # 216 tests, about 4 min (real Chromium against the mock bank)
+uv run lint-imports      # 9 architectural contracts
 uv run ruff check .
 ```
 
@@ -329,8 +353,9 @@ The contracts, from `pyproject.toml`:
 4. discovery and replay are independent drivers
 5. surface knows nothing about drivers, policy or control
 6. policy is pure decisions: no I/O, no surface, no LLM
-7. control and evidence know nothing about the surface or drivers
-8. the engine never imports the target app
+7. stability clearance is a pure decision: no I/O, no surface, no drivers
+8. control and evidence know nothing about the surface or drivers
+9. the engine never imports the target app
 
 ## Repo layout
 
@@ -338,8 +363,9 @@ The contracts, from `pyproject.toml`:
 catalog/corebank/
   app.json                  state library: screens, interstitials, fatal pages
   policy.json               guardrails for this app: allowed paths and action kinds, budgets
-  capabilities/             artifacts (+ verification records), draft or approved
+  capabilities/             artifacts (+ verification and stability records), draft or approved
   tenants/<tenant>/         overlays: a tenant's replacements for named targets of a base
+                            (+ their verification and stability records)
 goals/                      discovery goals: what to find, typed inputs and outputs
 src/cua/                    the engine (modules above)
 src/mock_bank/              the target app

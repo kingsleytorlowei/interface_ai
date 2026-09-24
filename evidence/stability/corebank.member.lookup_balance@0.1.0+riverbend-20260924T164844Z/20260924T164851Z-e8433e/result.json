@@ -1,0 +1,17 @@
+{
+  "run_id": "20260924T164851Z-e8433e",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0+riverbend",
+  "started_at": "2026-09-24T16:48:51.684281Z",
+  "finished_at": "2026-09-24T16:48:54.573511Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/stability/corebank.member.lookup_balance@0.1.0+riverbend-20260924T164844Z/20260924T164851Z-e8433e",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_balance": "\u00abshare_savings_balance\u00bb"
+  }
+}
