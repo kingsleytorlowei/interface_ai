@@ -4,6 +4,7 @@
   "artifact": "corebank.member.lookup_balance@0.1.0",
   "artifact_source": "discovered",
   "tenant": "pinnacle",
+  "overlay": false,
   "faults": {},
   "expire_sessions": true,
   "input_names": [

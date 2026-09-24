@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
-from .common import DottedId, Model, Risk, SemVer, Sensitivity, Slug, template_refs
+from .common import BuildVersion, DottedId, Model, Risk, Sensitivity, Slug, template_refs
 from .states import AppModel, StateKind
 from .targets import Target
 
@@ -163,7 +163,7 @@ def _action_target(action: Action) -> str | None:
 class Capability(Model):
     schema_version: Literal["1"] = "1"
     id: DottedId
-    version: SemVer
+    version: BuildVersion
     status: Status = Status.DRAFT
     description: str
     app: AppRef

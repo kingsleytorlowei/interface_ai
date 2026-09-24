@@ -29,6 +29,7 @@ from .capability import (
 )
 from .common import Risk, Sensitivity, render_template
 from .observation import ElementInfo, Observation, UINode
+from .overlay import BaseRef, CapabilityOverlay, OverlayProvenance, apply_overlay
 from .results import (
     Aborted,
     BusinessOutcome,
@@ -45,11 +46,14 @@ from .states import AppModel, Predicate, Recovery, SignOn, StateKind, StateSigna
 from .targets import Fingerprint, FrameSelector, Strategy, Target
 
 __all__ = [
-    "Aborted", "Action", "AppModel", "AppRef", "BusinessOutcome", "Capability", "Checkpoint",
+    "Aborted", "Action", "AppModel", "AppRef", "BaseRef", "BusinessOutcome", "Capability",
+    "CapabilityOverlay", "Checkpoint",
     "Click", "DriftSignal", "ElementInfo", "Entry", "Extract", "Failure", "FailureCategory",
     "Fill", "Fingerprint", "FrameSelector", "HumanAction", "InputSpec", "Intervention",
-    "Navigate", "Observation", "OutcomeSpec", "OutputSpec", "ParamType", "Predicate", "Press",
+    "Navigate", "Observation", "OutcomeSpec", "OutputSpec", "OverlayProvenance", "ParamType",
+    "Predicate", "Press",
     "Provenance", "Recovery", "RecoveryRecord", "Risk", "RunResult", "Select", "Sensitivity",
     "SignOn", "StateKind", "StateSignature", "Status", "Step", "Strategy", "Success",
-    "SuccessCondition", "Target", "UINode", "check_against_app", "render_template",
+    "SuccessCondition", "Target", "UINode", "apply_overlay", "check_against_app",
+    "render_template",
 ]

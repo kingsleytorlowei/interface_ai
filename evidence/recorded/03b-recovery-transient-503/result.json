@@ -2,8 +2,8 @@
   "run_id": "03b-recovery-transient-503",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T15:14:59.596119Z",
-  "finished_at": "2026-09-24T15:15:02.292501Z",
+  "started_at": "2026-09-24T16:37:50.035155Z",
+  "finished_at": "2026-09-24T16:37:52.759459Z",
   "recoveries": [
     {
       "step_id": null,

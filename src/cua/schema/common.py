@@ -18,6 +18,10 @@ class Model(BaseModel):
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]*$")]
 DottedId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$")]
 SemVer = Annotated[str, StringConstraints(pattern=r"^\d+\.\d+\.\d+$")]
+# A capability as it runs on one tenant carries the tenant as SemVer build metadata
+# (`0.1.0+riverbend`); only plain versions are ever stored.
+BuildVersion = Annotated[
+    str, StringConstraints(pattern=r"^\d+\.\d+\.\d+(\+[a-z][a-z0-9_]*)?$")]
 
 # `{{inputs.member_id}}` (per-invocation parameter) or `{{env.base_url}}` (per-tenant runtime).
 TEMPLATE_RE = re.compile(r"\{\{\s*(inputs|env)\.([a-z][a-z0-9_]*)\s*\}\}")

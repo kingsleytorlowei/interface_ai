@@ -1,0 +1,60 @@
+url: http://127.0.0.1:8012/main.html
+title: CoreOne Teller - Riverbend Federal Credit Union
+frames: ['http://127.0.0.1:8012/banner', 'http://127.0.0.1:8012/nav', 'http://127.0.0.1:8012/inquiry']
+
+--- tree ---
+- generic [ref=f5e1]:
+  - iframe [ref=f5e2]:
+    - generic [ref=f6e1]:
+      - generic [ref=f6e2]: Riverbend Federal Credit Union
+      - text: CoreOne Teller 7.4.1
+  - generic [ref=f5e3]:
+    - iframe [ref=f5e4]:
+      - generic [ref=f7e1]:
+        - table [ref=f7e2]:
+          - rowgroup [ref=f7e3]:
+            - row [ref=f7e4]:
+              - cell "Functions" [ref=f7e5]
+            - row [ref=f7e6]:
+              - cell [ref=f7e7]:
+                - link "Member Inquiry" [ref=f7e8] [cursor=pointer]:
+                  - /url: /inquiry
+            - row [ref=f7e9]:
+              - cell "Transactions" [ref=f7e10]
+            - row [ref=f7e11]:
+              - cell "Reports" [ref=f7e12]
+            - row [ref=f7e13]:
+              - cell [ref=f7e14]:
+                - link "Sign Off" [ref=f7e15] [cursor=pointer]:
+                  - /url: /signoff
+        - paragraph [ref=f7e16]: CoreOne Teller v7.4.1
+    - iframe [active] [ref=f5e5]:
+      - generic [ref=f8e1]:
+        - table [ref=f8e2]:
+          - rowgroup [ref=f8e3]:
+            - row [ref=f8e4]:
+              - cell "MEMBER INQUIRY" [ref=f8e5]
+        - table [ref=f8e7]:
+          - rowgroup [ref=f8e8]:
+            - row [ref=f8e16]:
+              - 'cell "Member #" [ref=f8e10]'
+              - cell [ref=f8e17]:
+                - textbox [active] [ref=f8e12]: "«inputs.member_id»"
+              - cell [ref=f8e13]:
+                - button "Find" [ref=f8e14]
+        - paragraph [ref=f8e15]: CoreOne Teller v7.4.1
+
+--- text ---
+
+Riverbend Federal Credit Union   CoreOne Teller 7.4.1
+Functions
+Member Inquiry
+Transactions
+Reports
+Sign Off
+
+CoreOne Teller v7.4.1
+MEMBER INQUIRY
+Member #		
+
+CoreOne Teller v7.4.1

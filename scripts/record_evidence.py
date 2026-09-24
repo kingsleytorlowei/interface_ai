@@ -66,6 +66,7 @@ class Scenario:
     check: Callable[[RunResult], bool]
     expected: str
     variant: str = "pinnacle"
+    overlay: bool = False  # apply the variant's approved tenant overlay
     faults: dict[str, int] = field(default_factory=dict)
     expire_sessions: bool = False
 
@@ -105,6 +106,19 @@ SCENARIOS = [
              lambda r: bool(r.drift) and r.kind in ("failure", "success"),
              "drift reported; explicit failure (or success on fallbacks), never a guess",
              variant="riverbend"),
+    # The same base artifacts, unchanged, with Riverbend's approved overlays: only the
+    # targets that differ there are replaced.
+    Scenario("05b-riverbend-overlay", "Tenant overlay: the same lookup on riverbend", LOOKUP,
+             {"member_id": "12345"},
+             lambda r: r.kind == "success" and not r.drift,
+             "success with no drift; version names the overlay", variant="riverbend",
+             overlay=True),
+    Scenario("05c-riverbend-overlay-form", "Tenant overlay: the sub-account form on riverbend",
+             PREPARE_SUBACCOUNT,
+             {"member_id": "45678", "account_type": "Share Certificate", "initial_deposit": "500"},
+             lambda r: r.kind == "success" and not r.drift,
+             "success with no drift (2 of 8 targets overridden)", variant="riverbend",
+             overlay=True),
     Scenario("06-approval-rejected", "Approval rejected: unattended irreversible step",
              OPEN_SUBACCOUNT,
              {"member_id": "12345", "account_type": "Holiday Club", "initial_deposit": "25.00"},
@@ -134,11 +148,16 @@ SCENARIOS = [
 ]
 
 
-def load_source(capability_id: str) -> Source:
+def load_source(capability_id: str, tenant: str | None = None) -> Source:
     try:
-        return Source(Store(CATALOG).load(capability_id, status=Status.APPROVED), "discovered")
+        capability = Store(CATALOG).load(capability_id, status=Status.APPROVED, tenant=tenant)
     except StoreError:
-        pass
+        if tenant:
+            raise  # an overlay scenario without its approved overlay is a setup error
+    else:
+        label = "discovered" + (f" + {tenant} overlay (hand-written, verified)"
+                               if "+" in capability.version else "")
+        return Source(capability, label)
     path = FIXTURES / f"{capability_id}.json"
     return Source(Capability.model_validate_json(path.read_text()), "fixture (hand-written)")
 
@@ -201,6 +220,7 @@ def record(scenario: Scenario, source: Source, base: str, surface: WebSurface) -
             "scenario": scenario.title, "expected": scenario.expected,
             "artifact": f"{source.capability.id}@{source.capability.version}",
             "artifact_source": source.label, "tenant": scenario.variant,
+            "overlay": scenario.overlay,
             "faults": scenario.faults, "expire_sessions": scenario.expire_sessions,
             "input_names": sorted(scenario.params),  # values are sensitive: never written
         })
@@ -253,7 +273,8 @@ def main() -> int:
     rows = []
     with mock_banks() as urls:
         for scenario in SCENARIOS:
-            source = load_source(scenario.capability)
+            source = load_source(scenario.capability,
+                                 scenario.variant if scenario.overlay else None)
             # A fresh browser per run, as the CLI does: no state leaks between scenarios.
             with WebSurface.launch() as surface:
                 result = record(scenario, source, urls[scenario.variant], surface)

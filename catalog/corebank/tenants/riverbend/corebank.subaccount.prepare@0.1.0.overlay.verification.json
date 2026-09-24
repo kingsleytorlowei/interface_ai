@@ -1,0 +1,15 @@
+{
+  "kind": "success",
+  "runs": [
+    {
+      "kind": "success",
+      "run_id": "20260924T162639Z-5e3042",
+      "evidence_ref": "evidence/20260924T162639Z-5e3042"
+    },
+    {
+      "kind": "success",
+      "run_id": "20260924T162644Z-2d34ed",
+      "evidence_ref": "evidence/20260924T162644Z-2d34ed"
+    }
+  ]
+}

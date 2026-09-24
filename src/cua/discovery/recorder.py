@@ -8,7 +8,7 @@ flow works on its own.
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
@@ -182,9 +182,10 @@ def _templates(action: Action) -> str:
     return ""
 
 
-def prune_strategies(capability: Capability, audits: Sequence[Mapping[str, list[bool]]]
-                     ) -> tuple[Capability, list[str]]:
-    """Keep only the strategies that identified their element in every verification run.
+def prune_strategies(capability: Capability, audits: Sequence[Mapping[str, list[bool]]],
+                     only: Collection[str] | None = None) -> tuple[Capability, list[str]]:
+    """Keep only the strategies that identified their element in every verification run
+    (with `only`, just for those targets: a tenant overlay prunes its own, never the base's).
 
     A strategy synthesized from one screen may lean on that screen's data (an anchor like
     "OPEN SUB-ACCOUNT — <member name>"): it is useless for any other input, and it carries
@@ -194,6 +195,9 @@ def prune_strategies(capability: Capability, audits: Sequence[Mapping[str, list[
     targets: dict[str, Target] = {}
     notes: list[str] = []
     for name, target in capability.targets.items():
+        if only is not None and name not in only:
+            targets[name] = target
+            continue
         runs = [audit[name] for audit in audits if name in audit]
         if not runs:
             notes.append(f"target {name} was never resolved during verification; its "

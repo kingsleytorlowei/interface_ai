@@ -17,6 +17,7 @@ from conftest import CATALOG
 from cua import cli
 from cua.schema import Capability, RunResult
 from cua.store import Store
+from test_overlay import overlay
 from test_store import draft
 
 runner = CliRunner()
@@ -35,7 +36,7 @@ RESULTS: dict[str, dict[str, Any]] = {
 @pytest.fixture
 def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Store:
     shutil.copytree(CATALOG / "corebank", tmp_path / "corebank",
-                    ignore=shutil.ignore_patterns("capabilities"))
+                    ignore=shutil.ignore_patterns("capabilities", "tenants"))
     monkeypatch.setattr(cli, "CATALOG", tmp_path)
     return Store(tmp_path)
 
@@ -121,3 +122,28 @@ def test_discover_needs_a_key_before_opening_anything(
     monkeypatch.setattr(cli, "open_session", lambda *a, **k: pytest.fail("opened a session"))
     result = runner.invoke(cli.app, ["discover", "goal.yaml"])
     assert result.exit_code == 2 and "ANTHROPIC_API_KEY" in result.output
+
+
+def test_replay_with_a_tenant_applies_only_its_approved_overlay(
+        store: Store, replayed: dict[str, Any]) -> None:
+    approved_then_newer_draft(store)
+    store.save_overlay(overlay(store.load(CAP, "0.1.0")), {"kind": "success"})
+    result = runner.invoke(cli.app, ["replay", CAP, "--tenant", "riverbend"])
+    assert result.exit_code == 2 and "overlay" in result.output and "is draft" in result.output
+    store.approve_overlay("riverbend", CAP, "0.1.0", "bob")
+    assert runner.invoke(cli.app, ["replay", CAP, "--tenant", "riverbend"]).exit_code == 0
+    assert replayed["capability"].version == "0.1.0+riverbend"
+    # a tenant with no overlay runs the base as recorded
+    assert runner.invoke(cli.app, ["replay", CAP, "--tenant", "pinnacle"]).exit_code == 0
+    assert replayed["capability"].version == "0.1.0"
+
+
+def test_approving_an_overlay(store: Store) -> None:
+    approved_then_newer_draft(store)
+    store.save_overlay(overlay(store.load(CAP, "0.1.0")), {"kind": "success"})
+    args = ["approve", CAP, "0.1.0", "--reviewer", "bob", "--tenant", "riverbend"]
+    result = runner.invoke(cli.app, [*args, "--read-only", "search"])
+    assert result.exit_code == 2 and "no risk to lower" in result.output
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 0, result.output
+    assert store.overlay("riverbend", CAP, "0.1.0").status == "approved"  # type: ignore[union-attr]

@@ -14,8 +14,9 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 | Sub-account form flow | 9 turns, ~55 s (18 / 59,866 / 12,646 / 1,712) |
 | Drafts stopped before approval | 2 of 5, both caught by verification or review: a mis-mapped outcome, and a member's name inside a fallback locator |
 | Stability | lookup attempts 2 and 3 produced structurally identical artifacts |
+| Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus a tenant overlay: all 4 lookup targets and 2 of 8 form targets replaced |
 | Replay | no LLM; a few seconds per run including sign-on |
-| Tests | 184 (real Chromium against the mock bank), 8 import-linter contracts |
+| Tests | 196 (real Chromium against the mock bank), 8 import-linter contracts |
 
 ## 1. Architecture
 
@@ -146,7 +147,8 @@ the member's name in the artifact (§6). Attempt 2 dropped it automatically.
 
 **Drift is reported, never guessed.** Replaying the Pinnacle-recorded lookup on the Riverbend
 tenant (`05`) resolves the member field through its CSS fallback (a drift signal) and then
-fails explicitly at `search_button`, because Riverbend labels it "Find".
+fails explicitly at `search_button`, because Riverbend labels it "Find". A tenant overlay
+(§4) is what makes it pass (`05b`).
 
 
 ## 4. Heterogeneity & multi-tenant
@@ -167,24 +169,46 @@ discovery. The web adapter is Playwright. The others, by design:
 Artifacts and state libraries don't change across these; only the adapter does.
 
 **Reuse across tenants.** Many institutions run the same vendor product with different
-branding, labels, versions and layout, which is what the two variants imitate. The layering I
-would build, of which only the first two layers exist:
+branding, labels, versions and layout, which is what the two variants imitate. Three layers,
+each owned and reviewed separately:
 
 1. **Vendor app model**, keyed by product and version range: the state library, sign-on and
    policy. Its predicates use vendor-constant text, so they held on Riverbend unchanged (the
    run passed the search screen's checkpoint there).
 2. **Base capability**, recorded once on one tenant; `app.compat` declares the product
    versions it was verified on. Tenant URLs are runtime configuration (`{{env.base_url}}`).
-3. **Tenant overlay** (designed, not built): target overrides by name, plus that tenant's
-   origin. Riverbend needs four: the member field (it resolved only through its CSS
-   fallback), the search button ("Find"), and the name and balance cells ("Member Name:",
-   "Current Bal."). The base artifact stays untouched.
+3. **Tenant overlay**: a file per tenant and capability
+   (`catalog/corebank/tenants/riverbend/`) that replaces named targets of one approved base
+   version, and nothing else. It can't touch steps, risk, inputs, outputs, outcomes or
+   states, so it can change where a flow acts but never what it does or promises its caller;
+   reviewing one means reviewing locators, not a flow. It replaces whole targets, fingerprint
+   included (Riverbend's "Find" button is not a "Search" button with one more strategy), and
+   is pinned to an exact base version, so a new base doesn't silently inherit it.
+
+At run time `--tenant riverbend` loads the approved base, applies that tenant's approved
+overlay and runs the result as `0.1.0+riverbend` (SemVer build metadata), so every result and
+evidence directory names what ran; a tenant with no overlay runs the base as recorded. The
+replay engine didn't change. A draft overlay is never skipped: running the base where an
+overlay exists would act on the wrong elements, so it's an error until someone approves it.
+The tenant's origin stays runtime configuration with its base URL (§6).
+
+What Riverbend needed: four overrides for the lookup (the member field, which had only
+resolved through its CSS fallback; "Find"; "Member Name:"; the "Current Bal." column) and two
+of eight for the sub-account flow (the same search screen; its form and review screens match).
+I wrote both overlays by hand from the drift evidence (`05`); each then went through the same
+gate as a discovered draft: `cua verify-overlay` replays base + overlay on Riverbend with two
+members, audits every strategy of the overridden targets and drops any that didn't hold, and
+approval is refused without that. Both base artifacts are unchanged. Recorded runs `05b` and
+`05c` pass with no drift.
 
 **Managing drift.** Every replay reports which targets fell back to a lower-ranked strategy,
-so per-tenant drift is visible before anything fails. A `target_not_found` on one tenant
-would trigger discovery scoped to that tenant, whose draft becomes an overlay (the same
-two-run verification, reviewed like any draft), not a re-recording. A version outside
-`compat`, read from the product banner, would stop the run before it acts.
+so per-tenant drift is visible before anything fails. In production, a `target_not_found` on
+one tenant would start discovery scoped to that target, "find this element here", whose
+output is an overlay draft rather than a re-recording; that is not built, and overlays are
+hand-written today. The two Riverbend overlays repeat the search screen's targets; at more
+tenants, overrides keyed by screen rather than by capability would remove the repetition. A
+version outside `compat`, read from the product banner, would stop the run before it acts
+(also not built: `compat` is `*`).
 
 ## 5. Escalation & handoff
 
@@ -262,7 +286,8 @@ does during a handoff is recorded but not gated.
 
 Deliberately left out:
 
-- **Tenant overlays** (§4): designed; the Riverbend evidence shows why they are needed.
+- **Scoped discovery for overlays** (§4): overlays are hand-written from drift evidence,
+  then verified and approved; no LLM writes them, and there is no `compat` check.
 - **Desktop and vision adapters**: the seam exists; no second adapter.
 - **A production operator console**: no auth, one session, a local window rather than
   streaming.
@@ -273,9 +298,10 @@ Deliberately left out:
 - **LLM limits**: a turn budget per discovery, but no cost or rate limits and no run-level
   deadline; one provider behind the `Planner` protocol.
 - **On-screen data detection**: undeclared data in snapshots (§6).
-- **Stretch goals**: only the draft → approved gate (from "confidence & approval").
+- **Stretch goals**: cross-tenant reuse with per-variant overrides (§4), and the draft →
+  approved gate from "confidence & approval", without a reliability score.
 
-Next, in order: tenant overlays with drift-triggered discovery into them; exposing approved
+Next, in order: drift-triggered, scoped discovery that drafts overlays; exposing approved
 capabilities as a typed tool catalog for agents; entity detection on screens before snapshots
 and transcripts are written; sandbox-tenant verification for irreversible flows; a replay
 stability score across repeated runs to gate unattended use; then queue-backed workers with

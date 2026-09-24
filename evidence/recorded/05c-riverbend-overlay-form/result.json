@@ -1,0 +1,19 @@
+{
+  "run_id": "05c-riverbend-overlay-form",
+  "capability_id": "corebank.subaccount.prepare",
+  "capability_version": "0.1.0+riverbend",
+  "started_at": "2026-09-24T16:38:12.128060Z",
+  "finished_at": "2026-09-24T16:38:15.039245Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_continue_button"
+  ],
+  "evidence_ref": "evidence/recorded/05c-riverbend-overlay-form",
+  "kind": "success",
+  "outputs": {
+    "account_type": "Share Certificate",
+    "initial_deposit": "\u00abinputs.initial_deposit\u00bb"
+  }
+}

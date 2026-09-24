@@ -2,8 +2,8 @@
   "run_id": "03a-recovery-session-expired",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T15:14:54.698107Z",
-  "finished_at": "2026-09-24T15:14:57.759512Z",
+  "started_at": "2026-09-24T16:37:45.011911Z",
+  "finished_at": "2026-09-24T16:37:48.149044Z",
   "recoveries": [
     {
       "step_id": null,

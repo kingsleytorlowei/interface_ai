@@ -12,7 +12,7 @@ from cua.store import Store, StoreError
 @pytest.fixture
 def store(tmp_path: Path) -> Store:
     shutil.copytree(CATALOG / "corebank", tmp_path / "corebank",
-                    ignore=shutil.ignore_patterns("capabilities"))
+                    ignore=shutil.ignore_patterns("capabilities", "tenants"))
     return Store(tmp_path)
 
 

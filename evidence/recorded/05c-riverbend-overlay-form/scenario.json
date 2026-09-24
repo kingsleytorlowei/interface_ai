@@ -1,0 +1,15 @@
+{
+  "scenario": "Tenant overlay: the sub-account form on riverbend",
+  "expected": "success with no drift (2 of 8 targets overridden)",
+  "artifact": "corebank.subaccount.prepare@0.1.0+riverbend",
+  "artifact_source": "discovered + riverbend overlay (hand-written, verified)",
+  "tenant": "riverbend",
+  "overlay": true,
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "account_type",
+    "initial_deposit",
+    "member_id"
+  ]
+}

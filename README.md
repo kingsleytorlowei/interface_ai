@@ -16,7 +16,7 @@ enforced by import-linter contracts (see [Tests & contracts](#tests--contracts))
 
 | Module | Job |
 |---|---|
-| `cua.schema` | Pure data contracts: capability artifact, targets, steps, state signatures, observations, run results. No I/O. |
+| `cua.schema` | Pure data contracts: capability artifact, tenant overlay, targets, steps, state signatures, observations, run results. No I/O. |
 | `cua.surface` | The perception/action port (`observe`, `resolve`, `act`) and its Playwright + Chromium web adapter. |
 | `cua.policy` | Guardrails: origin, path and action-kind allowlists, action risk classes, Allow / Deny / RequireApproval, redaction. |
 | `cua.control` | Control of a live session: the lease (who holds it), approval and intervention requests, resume/abort. |
@@ -24,11 +24,11 @@ enforced by import-linter contracts (see [Tests & contracts](#tests--contracts))
 | `cua.evidence` | Run directories, redacted JSONL event log, failure snapshots. |
 | `cua.secrets` | Resolves `env:NAME` credential references at the last moment; values never reach artifacts or logs. |
 | `cua.apps` | Per-app knowledge shared across capabilities: the state library (error pages, interstitials, notices). |
-| `cua.store` | Artifacts under `catalog/`: versions, and the draft → verified → approved gate. |
+| `cua.store` | Artifacts under `catalog/`: versions, tenant overlays, and the draft → verified → approved gate. |
 | `cua.discovery` | The LLM observe → decide → act loop and the recorder that turns actions into parameterized steps. The only place an LLM is used. |
 | `cua.replay` | Deterministic step execution, state classification, recovery, and the typed result. Never uses an LLM. |
 | `cua.operator` | Operator console (web) over `cua.control`: approvals, handoffs, pause, take over. |
-| `cua.cli` | Composition root: `cua discover`, `cua approve`, `cua replay`. |
+| `cua.cli` | Composition root: `cua discover`, `cua approve`, `cua replay`, `cua verify-overlay`. |
 | `mock_bank` | The target: a deliberately legacy mock core-banking app with two tenant variants. |
 
 ## Setup
@@ -206,6 +206,49 @@ uv run cua replay corebank.subaccount.prepare \
 restart would submit it again, so the engine treats it as possibly effective. A deposit of
 `"1.00"` gives `business_outcome` / `subaccount_values_rejected`.
 
+**9. The same capabilities on another tenant.** Riverbend runs the same product with other
+labels ("Member #", "Find", "Member Name:", "Current Bal.") and an extra table column. Start
+it next to Pinnacle:
+
+```bash
+uv run python -m mock_bank --variant riverbend --port 8002
+```
+
+The Pinnacle-recorded lookup, as recorded, fails there explicitly, reporting the drift it
+saw on the way:
+
+```bash
+uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}' \
+  --base-url http://127.0.0.1:8002
+```
+```json
+{"drift": [{"step_id": "fill_member_id_field", "target": "member_id_field", "strategy_index": 1}],
+ "kind": "failure", "category": "target_not_found", "step_id": "click_search_button"}
+```
+
+With `--tenant riverbend`, the same approved base runs with Riverbend's approved overlay,
+which replaces the four targets that differ there and nothing else:
+
+```bash
+uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}' \
+  --base-url http://127.0.0.1:8002 --tenant riverbend
+```
+```json
+{"capability_version": "0.1.0+riverbend", "drift": [], "kind": "success",
+ "outputs": {"member_name": "Jane Q. Sample", "share_savings_balance": "4210.37"}}
+```
+
+The sub-account flow needs only two of its eight targets overridden (the search screen);
+the form and review screens are the same on both tenants. The overlays are in
+`catalog/corebank/tenants/riverbend/`, written by hand from the drift evidence, then verified
+on Riverbend with two members and approved like any draft:
+
+```bash
+uv run cua verify-overlay corebank.member.lookup_balance --tenant riverbend \
+  --base-url http://127.0.0.1:8002 --params '{"member_id": "12345"}' --params '{"member_id": "45678"}'
+uv run cua approve corebank.member.lookup_balance 0.1.0 --tenant riverbend --reviewer "<you>"
+```
+
 ## Running without live services
 
 Nothing except step 2 needs a model key, and nothing needs a network service beyond the
@@ -214,13 +257,15 @@ local mock app.
 - **Tests** (`uv run pytest`) drive discovery with a `ScriptedPlanner` in place of the
   model, so the loop, recorder and verification are tested with no key. Tests that need the
   app run against mock-bank servers the test session starts itself.
-- **Demo steps 4–8** run against the approved artifacts checked into
-  `catalog/corebank/capabilities/` (both `0.1.0`, from the real discovery runs). Skip steps
-  2–3 and they report `"capability_version": "0.1.0"`.
+- **Demo steps 4–9** run against the approved artifacts checked into
+  `catalog/corebank/capabilities/` (both `0.1.0`, from the real discovery runs) and the
+  approved Riverbend overlays in `catalog/corebank/tenants/`. Skip steps 2–3 and they report
+  `"capability_version": "0.1.0"` (`"0.1.0+riverbend"` in step 9).
 - **`uv run python scripts/record_evidence.py`** starts its own mock banks and re-records
   every run that needs neither a model nor a human (happy path, not found, four recoveries,
-  fatal failure, tenant drift, rejected approval, timeout, the sub-account form flow and its
-  rejected deposit) into `evidence/recorded/`,
+  fatal failure, tenant drift and both capabilities on the second tenant through overlays,
+  rejected approval, timeout, the sub-account form flow and its rejected deposit) into
+  `evidence/recorded/`,
   checking each result. It takes about 2 min (the slowness scenarios wait out real timeouts).
 - **The real runs are committed**: both discovery attempts (the first was caught by the
   verification gate), the approval, and the console handoff with screenshots. See the
@@ -271,7 +316,7 @@ sign-on (`recorded/03b`, `07a`).
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 184 tests, about 3 min (real Chromium against the mock bank)
+uv run pytest            # 196 tests, about 3 min (real Chromium against the mock bank)
 uv run lint-imports      # 8 architectural contracts
 uv run ruff check .
 ```
@@ -294,6 +339,7 @@ catalog/corebank/
   app.json                  state library: screens, interstitials, fatal pages
   policy.json               guardrails for this app: allowed paths and action kinds, budgets
   capabilities/             artifacts (+ verification records), draft or approved
+  tenants/<tenant>/         overlays: a tenant's replacements for named targets of a base
 goals/                      discovery goals: what to find, typed inputs and outputs
 src/cua/                    the engine (modules above)
 src/mock_bank/              the target app

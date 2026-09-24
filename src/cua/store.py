@@ -4,10 +4,13 @@
     catalog/<app>/policy.json                               guardrails
     catalog/<app>/capabilities/<id>@<version>.json          capability artifact
     catalog/<app>/capabilities/<id>@<version>.verification.json   verification replay result
+    catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.json   tenant overlay
+    catalog/<app>/tenants/<tenant>/<id>@<base version>.overlay.verification.json
 
 A capability is only loadable if it fits its app's state library, and only approvable once a
 verification replay has succeeded. Approved artifacts are immutable: changes mean a new
-version.
+version. Overlays follow the same rules, verified on their own tenant, and only ever sit on
+an approved base (a base that could still change would move under them).
 """
 
 import json
@@ -16,7 +19,15 @@ from pathlib import Path
 from typing import Any
 
 from cua.policy import PolicyConfig, Redactor
-from cua.schema import AppModel, Capability, Risk, Status, check_against_app
+from cua.schema import (
+    AppModel,
+    Capability,
+    CapabilityOverlay,
+    Risk,
+    Status,
+    apply_overlay,
+    check_against_app,
+)
 
 
 class StoreError(Exception):
@@ -60,9 +71,29 @@ class Store:
         return json.loads(self._path(capability_id, version).read_text()).get("status")
 
     def load(self, capability_id: str, version: str | None = None, *,
-             status: Status | None = None) -> Capability:
+             status: Status | None = None, tenant: str | None = None) -> Capability:
         """A given version, or else the latest one (with `status`, the latest in that status:
-        callers invoking a capability want the latest approved one, not a newer draft)."""
+        callers invoking a capability want the latest approved one, not a newer draft).
+
+        With `tenant`, the capability as it runs there: the base with that tenant's overlay
+        applied, or the base unchanged if the tenant needs none. An overlay that isn't in
+        `status` is an error, never skipped: running the base where an overlay exists would
+        act on the wrong elements."""
+        capability = self._load_base(capability_id, version, status=status)
+        if tenant is None or (overlay := self.overlay(tenant, capability_id,
+                                                      capability.version)) is None:
+            return capability
+        if status is not None and overlay.status is not status:
+            raise StoreError(f"the {tenant} overlay for {capability_id}@{capability.version} "
+                             f"is {overlay.status}, not {status}; approve it, or pass "
+                             "--version to replay it")
+        try:
+            return apply_overlay(capability, overlay)
+        except ValueError as e:
+            raise StoreError(f"{tenant} overlay: {e}") from e
+
+    def _load_base(self, capability_id: str, version: str | None, *,
+                   status: Status | None) -> Capability:
         versions = self.versions(capability_id)
         if not versions:
             raise StoreError(f"no capability {capability_id!r}")
@@ -86,6 +117,9 @@ class Store:
         """Write a capability (and its verification record). `sensitive`: redactors holding
         the values a run knew to be sensitive; an artifact containing any of them is refused
         (artifacts are shared across tenants and must never carry data)."""
+        if "+" in capability.version:
+            raise StoreError(f"{capability.id}@{capability.version} has a tenant overlay "
+                             "applied; save the base and the overlay separately")
         text = capability.model_dump_json(indent=2, exclude_none=True) + "\n"
         if leaked := sorted({label for r in sensitive for label in r.labels_in(text)}):
             raise StoreError(f"{capability.id}@{capability.version} contains sensitive "
@@ -134,4 +168,72 @@ class Store:
             "provenance": {**capability.provenance.model_dump(), "reviewed_by": reviewer},
         })
         self.save(approved)
+        return approved
+
+    # tenant overlays -----------------------------------------------------------------------
+
+    def _overlay_path(self, tenant: str, capability_id: str, base_version: str,
+                      suffix: str = ".overlay.json") -> Path:
+        app_id = capability_id.split(".")[0]
+        return self.root / app_id / "tenants" / tenant / f"{capability_id}@{base_version}{suffix}"
+
+    def overlay(self, tenant: str, capability_id: str,
+                base_version: str) -> CapabilityOverlay | None:
+        path = self._overlay_path(tenant, capability_id, base_version)
+        return CapabilityOverlay.model_validate_json(path.read_text()) if path.exists() else None
+
+    def overlay_verification(self, tenant: str, capability_id: str,
+                             base_version: str) -> dict[str, Any] | None:
+        path = self._overlay_path(tenant, capability_id, base_version,
+                                  ".overlay.verification.json")
+        return json.loads(path.read_text()) if path.exists() else None
+
+    def save_overlay(self, overlay: CapabilityOverlay, verification: dict[str, Any] | None = None,
+                     *, sensitive: Iterable[Redactor] = ()) -> Path:
+        """Write an overlay (and its verification record). Same rules as `save`: it must apply
+        to an approved base, carry no known-sensitive value, and approved means immutable."""
+        base = self._load_base(overlay.base.id, overlay.base.version, status=None)
+        if base.status is not Status.APPROVED:
+            raise StoreError(f"{base.id}@{base.version} is {base.status}; overlays only sit "
+                             "on an approved base")
+        try:
+            apply_overlay(base, overlay)
+        except ValueError as e:
+            raise StoreError(f"{overlay.tenant} overlay: {e}") from e
+        text = overlay.model_dump_json(indent=2, exclude_none=True) + "\n"
+        if leaked := sorted({label for r in sensitive for label in r.labels_in(text)}):
+            raise StoreError(f"the {overlay.tenant} overlay for {base.id}@{base.version} "
+                             f"contains sensitive values ({', '.join(leaked)}); not saved")
+        existing = self.overlay(overlay.tenant, base.id, base.version)
+        if existing is not None and existing.status is Status.APPROVED:
+            raise StoreError(f"the {overlay.tenant} overlay for {base.id}@{base.version} is "
+                             "approved and immutable")
+        path = self._overlay_path(overlay.tenant, base.id, base.version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        if verification is not None:
+            self._overlay_path(overlay.tenant, base.id, base.version,
+                               ".overlay.verification.json").write_text(
+                json.dumps(verification, indent=2, default=str) + "\n")
+        return path
+
+    def approve_overlay(self, tenant: str, capability_id: str, base_version: str,
+                        reviewer: str) -> CapabilityOverlay:
+        """A human signs off on a tenant's locators, once they replayed on that tenant."""
+        overlay = self.overlay(tenant, capability_id, base_version)
+        if overlay is None:
+            raise StoreError(f"no {tenant} overlay for {capability_id}@{base_version}")
+        if overlay.status is not Status.DRAFT:
+            raise StoreError(f"the {tenant} overlay for {capability_id}@{base_version} is "
+                             f"{overlay.status}, not draft")
+        verification = self.overlay_verification(tenant, capability_id, base_version)
+        if not verification or verification.get("kind") != "success":
+            raise StoreError(f"approval needs a successful verification replay on {tenant} "
+                             f"first (have: {verification and verification.get('kind')})")
+        approved = CapabilityOverlay.model_validate({
+            **overlay.model_dump(),
+            "status": Status.APPROVED,
+            "provenance": {**overlay.provenance.model_dump(), "reviewed_by": reviewer},
+        })
+        self.save_overlay(approved)
         return approved

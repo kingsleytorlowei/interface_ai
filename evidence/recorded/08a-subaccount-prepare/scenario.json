@@ -4,6 +4,7 @@
   "artifact": "corebank.subaccount.prepare@0.1.0",
   "artifact_source": "discovered",
   "tenant": "pinnacle",
+  "overlay": false,
   "faults": {},
   "expire_sessions": false,
   "input_names": [
