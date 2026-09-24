@@ -9,14 +9,15 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 
 | From the real runs (`claude-opus-5`, all in [evidence/](evidence/README.md)) | |
 |---|---|
-| Real discovery runs | 5: member lookup ×3, sub-account form flow ×2 |
+| Real discovery runs | 6: member lookup ×3, sub-account form flow ×2, savings account number ×1 (started from a sentence in the workbench) |
 | Lookup | 5 turns, ~30 s, ~$0.10 (10 input / 21,472 cache-read / 8,576 cache-write / 1,284 output tokens) |
 | Sub-account form flow | 9 turns, ~55 s (18 / 59,866 / 12,646 / 1,712) |
-| Drafts stopped before approval | 2 of 5, both caught by verification or review: a mis-mapped outcome, and a member's name inside a fallback locator |
+| Drafts stopped before approval | 2 of 6, both caught by verification or review: a mis-mapped outcome, and a member's name inside a fallback locator |
 | Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
+| Through the workbench | a sentence → proposed contract (~7 s) → discovery (5 turns, 57 s) → review → approval → stability 10/10 → run from a form; 13 screenshots |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus a tenant overlay: all 4 lookup targets and 2 of 8 form targets replaced |
 | Replay | no LLM; 4 × 10 unattended replays (2 capabilities × 2 tenants) all `stable`, no drift; p50 2.8 s (lookup), 4.5 s (form), including sign-on |
-| Tests | 216 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
+| Tests | 244 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
 
 ## 1. Architecture
 
@@ -56,6 +57,24 @@ Key decisions:
   replay; running with nobody watching also needs a measured stability report (§6).
 - **One process, synchronous**, with every seam a protocol (`Surface`, `ControlPort`,
   `Planner`); the cost is one live session per process (§7).
+- **Bank staff work in a browser, not a terminal.** The actions (discover and verify,
+  approve, replay, measure stability, verify an overlay) live in `cua.workflows`; the
+  operator workbench and the CLI are two thin front ends over them, so a run started from
+  either is the same run. The CLI is for engineers and scripted evidence.
+
+**The people in the loop.** Three roles meet the system, and each gets what it can judge.
+An *operations employee* describes the work in their own words: Claude proposes the typed
+contract (one structured-output call), with questions for anything it had to guess, and the
+person corrects it and adds two example values before discovery runs, narrated live from
+the redacted event log. A *reviewer* approves a draft as numbered steps in plain words
+("Run the member search · button "Search" · may change data"), with a screenshot after each
+from the checking replays, the endings it handles and the notes, never as JSON: an approval
+gate is only as good as what the approver can read. A run's result reads as what happened
+and what to do next ("Nothing was changed; safe to try again"), and a run started from the
+workbench is attended, so an approval or handoff comes to that person instead of failing
+closed. *Callers* (scripts, other systems) use the CLI or the functions, and need the
+stability clearance to run unattended. Evidence: the end-to-end tour in
+`evidence/workbench/`, with the real model.
 
 ## 2. Artifact schema
 
@@ -236,7 +255,8 @@ alert was handed to me, acknowledged in the live window and the run finished wit
 Handing back without fixing the screen escalates again, and after two attempts the run fails
 `recovery_exhausted`.
 
-Mocked: the console has no authentication, self-declared identity and one local session.
+Mocked: the console (and the workbench, which hosts the same cards under *Needs you*) has
+no authentication, self-declared identity and one local session.
 Production needs an intervention queue with SLAs, SSO, and the live browser streamed to the
 operator (CDP screencast or VNC).
 
@@ -294,6 +314,12 @@ a locator anchor (§3; now pruned, with a sensitive-value check on save).
 on screen, and discovery's `events.jsonl` and draft keep locators as synthesized, before
 pruning (the log is append-only, so I don't rewrite it). The model sees screens, so discovery
 belongs on a sandbox tenant with synthetic members and a provider with zero data retention.
+The contract proposal sees only the request text, and a request containing anything that
+looks like member data (a long number, a card number, an email) is refused before it's sent;
+example values are typed in afterwards and only ever reach the application. Per-step
+screenshots from verification are written when the run ends, once every output is known to
+be sensitive: written as it went, the text beside the screen after "Search" carried the
+member's name, which the test caught.
 Irreversibility inference is a name heuristic: an "OK" button that posts a transaction looks
 reversible, which is what per-app `irreversible_patterns` and review are for. What a human
 does during a handoff is recorded but not gated.
@@ -305,8 +331,9 @@ Deliberately left out:
 - **Scoped discovery for overlays** (§4): overlays are hand-written from drift evidence,
   then verified and approved; no LLM writes them, and there is no `compat` check.
 - **Desktop and vision adapters**: the seam exists; no second adapter.
-- **A production operator console**: no auth, one session, a local window rather than
-  streaming.
+- **A production workbench**: no auth or roles (anyone can approve; the name is typed),
+  localhost only, one job at a time, the handoff window on the same machine rather than
+  streamed. Replays show their result, not live step progress (discovery does).
 - **Scale**: one live session per process, synchronous; no queue or workers.
 - **Verification of irreversible flows**: verification must not commit, so a flow through
   *Confirm* can't be proven by replay. The discovered capability stops at review; opening the

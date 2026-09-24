@@ -1,0 +1,15 @@
+{
+  "run_id": "20260924T182130Z-df9ddb",
+  "capability_id": "corebank.member.share_savings_account_number",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T18:21:30.578167Z",
+  "finished_at": "2026-09-24T18:21:33.332371Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/20260924T182130Z-df9ddb",
+  "kind": "business_outcome",
+  "code": "no_such_member",
+  "message": "Search ran but no member exists with the supplied member number; no member record to read."
+}

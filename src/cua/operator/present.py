@@ -139,8 +139,9 @@ def result(capability: Capability, r: RunResult) -> ResultView:
             view = ResultView("failure", _failure_headline(capability, r))
         case Aborted(reason=reason, step_id=step_id):
             view = ResultView("stopped", f"Stopped {_at(capability, step_id)}: {reason}")
-    if r.recoveries:
-        handled = sorted({RECOVERY_WORDS.get(x.recovery, x.recovery) for x in r.recoveries})
+    # A handoff is listed once, with who stepped in, not also as a recovery.
+    if handled := sorted({RECOVERY_WORDS.get(x.recovery, x.recovery) for x in r.recoveries
+                          if not (x.recovery == "escalate" and r.interventions)}):
         view.details.append("Handled on the way: " + "; ".join(handled) + ".")
     if r.interventions:
         people = sorted({i.operator or "an operator" for i in r.interventions})

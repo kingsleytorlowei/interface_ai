@@ -1,0 +1,17 @@
+{
+  "run_id": "20260924T182126Z-433c83",
+  "capability_id": "corebank.member.share_savings_account_number",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T18:21:26.237678Z",
+  "finished_at": "2026-09-24T18:21:29.074138Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/20260924T182126Z-433c83",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "share_savings_account_number": "\u00abshare_savings_account_number\u00bb"
+  }
+}

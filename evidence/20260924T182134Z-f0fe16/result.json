@@ -1,0 +1,33 @@
+{
+  "run_id": "20260924T182134Z-f0fe16",
+  "capability_id": "corebank.member.lookup_balance",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T18:21:34.859799Z",
+  "finished_at": "2026-09-24T18:21:38.955397Z",
+  "recoveries": [
+    {
+      "step_id": "click_search_button",
+      "state": "member_alert",
+      "recovery": "escalate",
+      "attempt": 1
+    }
+  ],
+  "interventions": [
+    {
+      "id": "20260924T182134Z-f0fe16-iv1",
+      "step_id": "click_search_button",
+      "reason": "Member alert requiring identity confirmation. Deliberately NOT auto-dismissed: a person must read and act on it.",
+      "operator": "Kingsley Torlowei",
+      "actions": [],
+      "resolution": "aborted",
+      "requested_at": "2026-09-24T18:21:37.607555Z",
+      "resolved_at": "2026-09-24T18:21:38.955361Z"
+    }
+  ],
+  "drift": [],
+  "committed_steps": [],
+  "evidence_ref": "evidence/20260924T182134Z-f0fe16",
+  "kind": "aborted",
+  "step_id": "click_search_button",
+  "reason": "operator aborted: Member alert requiring identity confirmation. Deliberately NOT auto-dismissed: a person must read and act on it."
+}

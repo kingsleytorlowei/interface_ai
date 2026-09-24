@@ -6,7 +6,9 @@
   nav.wb .badge { background: #c77700; color: #fff; border-radius: 9px; padding: 1px 7px; font-size: 12px; }
   nav.wb form { margin-left: auto; display: flex; gap: 6px; align-items: center; }
   nav.wb input { width: 140px; }
-  nav.wb .busy { color: #ffd27a; font-size: 12px; }
+  nav.wb .busy { color: #ffd27a; font-size: 12px; max-width: 260px; white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis; }
+  nav.wb a, nav.wb strong { white-space: nowrap; }
 </style>
 <nav class="wb">
   <strong>Operator workbench</strong>

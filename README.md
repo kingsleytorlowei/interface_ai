@@ -6,7 +6,13 @@ deterministically, without an LLM**, with typed inputs and outputs, explicit err
 guardrails on every action, and a handoff to a human on the live session when a screen needs
 a person.
 
-Design write-up: [REPORT.md](REPORT.md) · Runs and screenshots: [evidence/](evidence/)
+Bank staff work in the **operator workbench** (`cua console`): they describe an automation
+in plain English, check what it needs and gives back, watch it being found, review it as
+steps in their own words, approve it, and run it from a form. The command line is for
+engineers and scripted runs.
+
+Design write-up: [REPORT.md](REPORT.md) · Runs and screenshots: [evidence/](evidence/) ·
+Workbench tour: [evidence/workbench/](evidence/workbench/)
 
 ## Modules
 
@@ -28,8 +34,9 @@ enforced by import-linter contracts (see [Tests & contracts](#tests--contracts))
 | `cua.stability` | Clearance for unattended replay: an approved capability's stability report against the app's thresholds. Pure. |
 | `cua.discovery` | The LLM observe → decide → act loop and the recorder that turns actions into parameterized steps. The only place an LLM is used. |
 | `cua.replay` | Deterministic step execution, state classification, recovery, and the typed result. Never uses an LLM. |
-| `cua.operator` | Operator console (web) over `cua.control`: approvals, handoffs, pause, take over. |
-| `cua.cli` | Composition root: `cua discover`, `cua approve`, `cua replay`, `cua verify-overlay`, `cua stability`. |
+| `cua.workflows` | The actions (discover and verify, approve, replay, measure stability, verify an overlay), shared by both front ends. |
+| `cua.operator` | The operator workbench (web, for bank staff) and the per-run console over `cua.control`: approvals, handoffs, pause, take over. |
+| `cua.cli` | Command line for engineers: `cua console` (the workbench), `discover`, `approve`, `replay`, `verify-overlay`, `stability`. |
 | `mock_bank` | The target: a deliberately legacy mock core-banking app with two tenant variants. |
 
 ## Setup
@@ -45,7 +52,29 @@ cp .env.example .env                   # then set ANTHROPIC_API_KEY (discovery o
 `.env` also holds the mock app's teller credentials (`COREBANK_USER`, `COREBANK_PASSWORD`),
 which the engine resolves at run time. `.env` is git-ignored.
 
-## Demo path
+## The operator workbench
+
+```bash
+uv run python -m mock_bank --variant pinnacle --port 8001     # the target app, own terminal
+uv run cua console                                            # http://127.0.0.1:8765
+```
+
+Add `--tenant riverbend=http://127.0.0.1:8002` to run automations at the second institution.
+The automation's browser window opens on screen, because a handoff happens in it.
+
+| Screen | What a person does there |
+|---|---|
+| **New automation** | Describes the work in their own words. Claude proposes what it needs and gives back (types, sensitivity, format rules) and asks about anything it had to guess; the person corrects it and gives two example values per input. Text that looks like member data is refused before it's sent. **Find how to do it** runs discovery with its progress narrated ("Filled the text box right of "Member ID""), then both checking replays. |
+| **Automations** | Everything that exists: approved, waiting for review, rejected; cleared for unattended use or not; other institutions. |
+| **Review** | A draft as numbered steps: what each does, where (in words, never locators), what it can change, and a screenshot after it from the checks. The endings it handles, reviewer notes, **Approve** (ticking search steps as read-only) or **Reject** with a reason. Approved automations show their stability per institution and a **Measure stability** form. |
+| **Run** | A form built from the inputs. The result says what happened and what to do next: *"Done: \*\*\*\*4417"*, *"No member exists with that number"*, *"The application didn't respond in time at "Run the member search". Nothing was changed; safe to try again."* |
+| **Needs you** | Approvals and handoffs from runs started here: a person is at the workbench, so a run that needs one comes to them instead of failing closed. |
+
+One run at a time (the process drives one browser). [`scripts/workbench_tour.py`](scripts/workbench_tour.py)
+drives every screen with Playwright and the real model and saved the screenshots in
+[evidence/workbench/](evidence/workbench/).
+
+## Demo path (command line)
 
 Run each command from the repo root. Replay prints a JSON `RunResult`; the listings below
 are trimmed to the fields that matter. Every run also writes a redacted evidence directory
@@ -340,7 +369,7 @@ sign-on (`recorded/03b`, `07a`).
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 216 tests, about 4 min (real Chromium against the mock bank)
+uv run pytest            # 244 tests, about 4 min (real Chromium against the mock bank)
 uv run lint-imports      # 9 architectural contracts
 uv run mypy              # strict, with the pydantic plugin (src/ and scripts/)
 uv run ruff check .
@@ -368,9 +397,10 @@ catalog/corebank/
   tenants/<tenant>/         overlays: a tenant's replacements for named targets of a base
                             (+ their verification and stability records)
 goals/                      discovery goals: what to find, typed inputs and outputs
-src/cua/                    the engine (modules above)
+src/cua/                    the engine (modules above); src/cua/operator/templates/ the workbench pages
 src/mock_bank/              the target app
 scripts/record_evidence.py  reproducible evidence runs
+scripts/workbench_tour.py   the workbench, end to end, with screenshots
 evidence/                   committed runs, indexed in evidence/README.md
 tests/                      pytest suite; tests/fixtures/ holds hand-written artifacts
 REPORT.md                   design decisions and trade-offs

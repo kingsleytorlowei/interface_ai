@@ -339,3 +339,15 @@ def test_a_new_automation_found_through_the_workbench(
     review = client.get(f"/automations/{draft_.id}/0.1.0").text
     for n in range(1, len(draft_.steps) + 1):
         assert f'alt="after step {n}"' in review  # what each step did, from the checks
+
+
+def test_a_handoff_is_described_once() -> None:
+    from cua.schema import Aborted, Intervention, RecoveryRecord
+    stopped = Aborted(
+        run_id="r", capability_id=LOOKUP.id, capability_version=LOOKUP.version, started_at=NOW,
+        finished_at=NOW, evidence_ref="e", step_id="search", reason="operator aborted",
+        recoveries=[RecoveryRecord(step_id="search", state="member_alert",
+                                   recovery="escalate", attempt=1)],
+        interventions=[Intervention(id="i", step_id="search", reason="alert", operator="Alice",
+                                    resolution="aborted", requested_at=NOW, resolved_at=NOW)])
+    assert present.result(LOOKUP, stopped).details == ["A person stepped in: Alice."]

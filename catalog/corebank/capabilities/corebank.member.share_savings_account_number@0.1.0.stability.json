@@ -1,0 +1,128 @@
+{
+  "schema_version": "1",
+  "capability_id": "corebank.member.share_savings_account_number",
+  "version": "0.1.0",
+  "tenant": null,
+  "measured_at": "2026-09-24T18:18:47.806650Z",
+  "runs": [
+    {
+      "run_id": "20260924T181848Z-dbd8ed",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181848Z-dbd8ed",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.8
+    },
+    {
+      "run_id": "20260924T181851Z-303b1b",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181851Z-303b1b",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.86
+    },
+    {
+      "run_id": "20260924T181854Z-367ff7",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181854Z-367ff7",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.81
+    },
+    {
+      "run_id": "20260924T181857Z-10d178",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181857Z-10d178",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.83
+    },
+    {
+      "run_id": "20260924T181901Z-95e862",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181901Z-95e862",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.9
+    },
+    {
+      "run_id": "20260924T181904Z-5e262d",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181904Z-5e262d",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.8
+    },
+    {
+      "run_id": "20260924T181907Z-dc21a1",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181907Z-dc21a1",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.85
+    },
+    {
+      "run_id": "20260924T181910Z-d4b647",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181910Z-d4b647",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.81
+    },
+    {
+      "run_id": "20260924T181914Z-b93b56",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181914Z-b93b56",
+      "params_set": 0,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.88
+    },
+    {
+      "run_id": "20260924T181917Z-7e68c3",
+      "evidence_ref": "evidence/stability/corebank.member.share_savings_account_number@0.1.0-20260924T181847Z/20260924T181917Z-7e68c3",
+      "params_set": 1,
+      "kind": "success",
+      "category": null,
+      "step_id": null,
+      "drift_targets": [],
+      "recoveries": [],
+      "duration_s": 2.84
+    }
+  ],
+  "runs_total": 10,
+  "success_rate": 1.0,
+  "consistent": true,
+  "drift_runs": 0,
+  "recovery_runs": 0,
+  "failures": {},
+  "duration_p50_s": 2.83,
+  "duration_max_s": 2.9,
+  "verdict": "stable"
+}

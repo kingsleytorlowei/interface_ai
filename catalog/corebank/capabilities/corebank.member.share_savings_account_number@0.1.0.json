@@ -1,0 +1,215 @@
+{
+  "schema_version": "1",
+  "id": "corebank.member.share_savings_account_number",
+  "version": "0.1.0",
+  "status": "approved",
+  "description": "Read member's Share Savings account number",
+  "app": {
+    "app_id": "corebank",
+    "surface": "web",
+    "compat": "*"
+  },
+  "risk": "read_only",
+  "entry": {
+    "url": "{{env.base_url}}/main.html",
+    "requires_session": true
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "pii",
+      "pattern": "^\\d{5}$"
+    }
+  },
+  "outputs": {
+    "member_name": {
+      "type": "string",
+      "description": "The member's full name as shown on the member record",
+      "sensitivity": "pii"
+    },
+    "share_savings_account_number": {
+      "type": "string",
+      "description": "Account number shown for the member's Share Savings account",
+      "sensitivity": "confidential"
+    }
+  },
+  "outcomes": {
+    "no_such_member": {
+      "description": "Search ran but no member exists with the supplied member number; no member record to read.",
+      "when_state": "no_results"
+    },
+    "invalid_member_number": {
+      "description": "The app rejected the member number format (not a valid 5-digit number) before searching.",
+      "when_state": "invalid_member_number"
+    },
+    "access_denied": {
+      "description": "Teller lacks permission to view this member (restricted account); member details cannot be read.",
+      "when_state": "access_denied"
+    }
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"mbrno\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "textbox",
+        "tag": "input"
+      }
+    },
+    "search_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": true
+        },
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "button"
+        }
+      ],
+      "fingerprint": {
+        "role": "button",
+        "name": "Search",
+        "tag": "input"
+      }
+    },
+    "member_name": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Name:",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    },
+    "share_savings_account_number": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "table_cell",
+          "row_has_text": "Share Savings",
+          "column": "Account"
+        },
+        {
+          "by": "near",
+          "text": "Share Savings",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "fill_member_id_field",
+      "intent": "Enter the member number to search",
+      "action": {
+        "kind": "fill",
+        "target": "member_id_field",
+        "value": "{{inputs.member_id}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_search",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_search_button",
+      "intent": "Run the member search",
+      "action": {
+        "kind": "click",
+        "target": "search_button"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_member_name",
+      "intent": "Read the member's full name",
+      "action": {
+        "kind": "extract",
+        "target": "member_name",
+        "into": "member_name"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_share_savings_account_number",
+      "intent": "Read the Share Savings account number",
+      "action": {
+        "kind": "extract",
+        "target": "share_savings_account_number",
+        "into": "share_savings_account_number"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    }
+  ],
+  "success": {
+    "state": "member_detail",
+    "outputs_present": [
+      "member_name",
+      "share_savings_account_number"
+    ]
+  },
+  "provenance": {
+    "run_id": "20260924T181750Z-45e97e",
+    "model": "claude-opus-5",
+    "recorded_at": "2026-09-24T18:18:40.068653Z",
+    "reviewed_by": "Kingsley Torlowei"
+  }
+}
