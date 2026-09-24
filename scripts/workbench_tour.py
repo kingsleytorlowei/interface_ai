@@ -44,7 +44,7 @@ def main() -> int:
 
     def ask(page: Page, message: str) -> None:
         page.fill("#message", message)
-        page.click("#ask button.primary")
+        page.press("#message", "Enter")
         page.wait_for_function(
             "document.querySelector('.exchange') && !document.querySelector('.exchange .working')",
             timeout=120_000)
@@ -53,8 +53,9 @@ def main() -> int:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(url + "/")
+        page.click(".account summary")
         page.fill("#opname", OPERATOR)
-        page.click("form.who button")
+        page.click(".account .menu button")
         shot(page, "01-home")
 
         print("1. ask for something a saved automation does, and run it from the chat")

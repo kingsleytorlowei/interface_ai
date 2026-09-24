@@ -57,7 +57,7 @@ def to_route(raw: Mapping[str, Any], automations: Sequence[Mapping[str, Any]],
     that are placeholders or words from the message; put the real values back."""
     known = {a["id"]: a for a in automations}
     action = raw.get("action") if raw.get("action") in ("run", "create", "reply") else "reply"
-    reply = str(raw.get("reply") or "").strip()
+    reply = _without_ids(str(raw.get("reply") or "").strip(), known)
     if action == "run" and raw.get("automation") not in known:
         action, reply = "reply", reply or "I couldn't match that to a saved automation."
     if action != "run":
@@ -76,6 +76,14 @@ def to_route(raw: Mapping[str, Any], automations: Sequence[Mapping[str, Any]],
         elif not _PLACEHOLDER.search(value) and value.lower() in redacted.lower():
             inputs[name] = value  # e.g. a product named in the message
     return Route(action="run", reply=reply, automation=automation["id"], inputs=inputs)
+
+
+def _without_ids(reply: str, known: Mapping[str, Any]) -> str:
+    """Staff read titles, not identifiers: drop any automation id the model mentioned
+    (with the brackets, quotes or parentheses around it)."""
+    for automation_id in known:
+        reply = re.sub(rf"\s*\(?[«`'\"]*{re.escape(automation_id)}[»`'\"]*\)?", "", reply)
+    return reply.strip()
 
 
 SCHEMA: dict[str, Any] = {
@@ -108,7 +116,8 @@ what the new automation should do, in plain words, without any values or placeho
 Answer briefly; if they ask what you can do, name the saved automations.
 Keep reply short and plain. For "run", nothing has run yet: the person checks the details \
 and presses Run, so say what you found (e.g. "That's the balance lookup."), not that it is \
-running. Never invent values."""
+running. In reply, name automations by what they do, never by their id. Never invent \
+values."""
 
 
 class ClaudeRouter:

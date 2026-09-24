@@ -40,27 +40,36 @@ p { margin: 0 0 10px; }
 .soft { color: var(--ink-soft); }
 .small { font-size: 13px; }
 
-/* top bar: a quiet ledger header, not a dark slab */
+/* top bar: the name of the place, and only what needs you */
 .topbar { border-bottom: 1px solid var(--rule); background: var(--paper); }
-.topbar-inner { max-width: 1040px; margin: 0 auto; padding: 14px 24px; display: flex;
-                align-items: center; gap: 22px; }
+.topbar-inner { max-width: 1040px; margin: 0 auto; padding: 12px 24px; display: flex;
+                align-items: center; justify-content: space-between; gap: 16px; }
 .wordmark { font-weight: 750; font-size: 17px; color: var(--ink); text-decoration: none;
             letter-spacing: -0.02em; white-space: nowrap; }
 .wordmark span { color: var(--green); }
-.topbar nav { display: flex; gap: 18px; }
-.topbar nav a { color: var(--ink-soft); text-decoration: none; font-weight: 500; white-space: nowrap; }
-.topbar nav a:hover, .topbar nav a.active { color: var(--ink); }
-.topbar nav a.active { box-shadow: inset 0 -2px 0 var(--green); padding-bottom: 3px; }
+.bar-right { display: flex; align-items: center; gap: 14px; }
+.needs { color: var(--amber); font-weight: 600; font-size: 14px; text-decoration: none;
+         white-space: nowrap; }
+.needs::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                 background: var(--amber); margin-right: 7px; vertical-align: 1px; }
 .count { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px;
          border-radius: 10px; background: var(--amber); color: #fff; font-size: 12px;
          text-align: center; font-weight: 600; }
-.busy { color: var(--ink-soft); font-size: 13px; max-width: 200px; white-space: nowrap;
-        overflow: hidden; text-overflow: ellipsis; }
-.busy::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-                background: var(--amber); margin-right: 7px; vertical-align: 1px; }
-.who { margin-left: auto; display: flex; gap: 6px; align-items: center; font-size: 13px;
-       white-space: nowrap; }
-.who input { width: 150px; padding: 5px 8px; }
+.account { position: relative; }
+.account summary { list-style: none; cursor: pointer; font-size: 14px; color: var(--ink-soft);
+                   font-weight: 500; }
+.account summary::-webkit-details-marker { display: none; }
+.initials { display: inline-flex; width: 32px; height: 32px; border-radius: 50%; align-items: center;
+            justify-content: center; background: var(--green-tint); color: var(--green);
+            font-weight: 650; font-size: 13px; }
+.account .menu { position: absolute; right: 0; top: calc(100% + 8px); width: 260px; z-index: 10;
+                 background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+                 padding: 14px; box-shadow: 0 8px 24px -12px rgba(27, 42, 58, .35); }
+.account .menu label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.account .menu input { width: 100%; }
+.account .menu p { margin: 6px 0 10px; }
+.account .menu a { display: block; padding: 8px 0 0; margin-top: 8px; border-top: 1px solid var(--rule);
+                   text-decoration: none; }
 
 main { max-width: 1040px; margin: 0 auto; padding: 32px 24px 64px; }
 .column { max-width: 720px; }
@@ -115,19 +124,35 @@ label.field { display: block; font-weight: 600; margin: 14px 0 6px; }
 .ledger .num { color: var(--ink-soft); width: 34px; }
 .ledger td.act { text-align: right; white-space: nowrap; }
 
-/* the home: the question is the page's type */
-.ask h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.025em; font-weight: 700;
-          margin-bottom: 18px; max-width: 16ch; }
-.ask > form { display: flex; gap: 10px; }
-.ask > form textarea { flex: 1; resize: vertical; min-height: 56px; font-size: 17px; padding: 14px 16px; }
-.ask .examples { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-.ask .examples button { font-weight: 500; font-size: 13px; padding: 6px 11px; color: var(--ink-soft); }
+/* the home: one question and a place to answer it, like a chat */
+.chat { max-width: 720px; margin: 24px auto 0; }
+.chat h1 { font-size: 30px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700;
+           text-align: center; margin-bottom: 22px; }
+.composer { display: flex; align-items: flex-end; gap: 8px; background: var(--surface);
+            border: 1px solid var(--rule); border-radius: 16px; padding: 10px 10px 10px 16px;
+            box-shadow: 0 1px 2px rgba(27, 42, 58, .05); }
+.composer:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-tint); }
+.composer textarea { flex: 1; border: 0; padding: 6px 0; resize: none; font-size: 16px;
+                     line-height: 1.45; max-height: 200px; background: transparent; }
+.composer textarea:focus { box-shadow: none; }
+.send { width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 0; flex: none;
+        background: var(--green); color: #fff; display: inline-flex; align-items: center;
+        justify-content: center; }
+.send:disabled { background: var(--rule); color: var(--ink-soft); opacity: 1; }
+.composer-hint { font-size: 12px; color: var(--ink-soft); margin: 8px 4px 0; }
+.suggestions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.suggestions button { font-weight: 500; font-size: 13px; padding: 7px 12px; color: var(--ink-soft);
+                      border-radius: 16px; }
 
-.transcript { margin-top: 26px; }
-.exchange { margin: 0 0 22px; }
-.said { color: var(--ink-soft); padding-left: 12px; border-left: 2px solid var(--rule); margin-bottom: 10px; }
-.said b { color: var(--ink); font-weight: 600; }
+.transcript:not(:empty) { margin-bottom: 18px; }
+.exchange { margin: 0 0 24px; }
+.said { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px;
+        padding: 10px 14px; margin: 0 0 12px auto; width: fit-content; max-width: 85%; }
 .reply { margin-bottom: 10px; }
+
+.saved { max-width: 720px; margin: 56px auto 0; }
+.saved h2 { margin-top: 0; }
+details.env summary { cursor: pointer; font-size: 13px; color: var(--ink-soft); margin: 14px 0 6px; }
 
 .runcard { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
            padding: 16px 18px; }
@@ -179,9 +204,7 @@ pre.progress { background: var(--surface); border: 1px solid var(--rule); border
 
 @media (max-width: 720px) {
   .topbar-inner { flex-wrap: wrap; gap: 12px; }
-  .who { margin-left: 0; }
-  .ask h1 { font-size: 30px; }
-  .ask > form { flex-direction: column; }
+  .chat h1 { font-size: 24px; }
   .runcard .fields { grid-template-columns: 1fr; }
   .ledger th:nth-child(3), .ledger td:nth-child(3) { display: none; }
 }

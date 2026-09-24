@@ -1,16 +1,21 @@
+{% set initials = (operator.split() | map("first") | join("") | upper)[:2] if operator else "" %}
 <header class="topbar"><div class="topbar-inner">
   <a class="wordmark" href="/">Operator <span>workbench</span></a>
-  <nav>
-    <a href="/" class="{{ 'active' if active == 'home' }}">Home</a>
-    <a href="/new" class="{{ 'active' if active == 'new' }}">New automation</a>
-    <a href="/jobs" class="{{ 'active' if active == 'jobs' }}">Activity</a>
-    <a href="/needs-you" class="{{ 'active' if active == 'needs-you' }}">Needs you{% if pending %}<span class="count">{{ pending }}</span>{% endif %}</a>
-  </nav>
-  {% if current_job %}<a class="busy" href="/jobs/{{ current_job.id }}" title="{{ current_job.title }}">Running: {{ current_job.title }}</a>{% endif %}
-  <form class="who" method="post" action="/operator">
-    <label for="opname">You are</label>
-    <input type="text" id="opname" name="name" value="{{ operator }}" placeholder="your name" autocomplete="name">
-    <button class="quiet">Save</button>
-  </form>
+  <div class="bar-right">
+    {% if pending %}<a class="needs" href="/needs-you">Needs you <span class="count">{{ pending }}</span></a>{% endif %}
+    <details class="account">
+      <summary aria-label="Your name and recent runs">{% if initials %}<span class="initials">{{ initials }}</span>{% else %}Set your name{% endif %}</summary>
+      <div class="menu">
+        <form method="post" action="/operator">
+          <label for="opname">Your name</label>
+          <input type="text" id="opname" name="name" value="{{ operator }}" autocomplete="name">
+          <p class="small soft">Used when you approve, reject or hand back.</p>
+          <button class="primary">Save</button>
+        </form>
+        <a href="/jobs">Recent runs</a>
+        <a href="/needs-you">Needs you</a>
+      </div>
+    </details>
+  </div>
 </div></header>
 <script>if ({{ operator | tojson }}) localStorage.setItem('operator', {{ operator | tojson }});</script>

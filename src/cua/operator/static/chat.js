@@ -4,7 +4,17 @@
 (() => {
   const form = document.getElementById("ask");
   const box = document.getElementById("message");
+  const send = form.querySelector(".send");
   const transcript = document.getElementById("transcript");
+  const suggestions = document.getElementById("suggestions");
+
+  // the box grows with what's typed; the arrow only works when there is something to send
+  const fit = () => {
+    box.style.height = "auto";
+    box.style.height = `${Math.min(box.scrollHeight, 200)}px`;
+    send.disabled = !box.value.trim();
+  };
+  const keepInView = () => form.scrollIntoView({ block: "nearest", behavior: "smooth" });
 
   const el = (tag, attrs = {}, ...children) => {
     const node = document.createElement(tag);
@@ -55,7 +65,7 @@
       }
       if (job.status === "running") continue;
       (told ? where.querySelector(".note") : status)?.remove();
-      if (job.result) where.append(receipt(title, job.result));
+      if (job.result) { where.append(receipt(title, job.result)); keepInView(); }
       else where.append(el("div", { class: "note error", text: job.error || "It didn't finish." }));
       return;
     }
@@ -125,22 +135,26 @@
     const message = box.value.trim();
     if (!message) return;
     box.value = "";
-    const exchange = el("div", { class: "exchange" },
-      el("div", { class: "said" }, el("b", { text: "You: " }), message));
+    fit();
+    suggestions?.remove();
+    const exchange = el("div", { class: "exchange" }, el("div", { class: "said", text: message }));
     const thinking = working("Looking…");
     exchange.append(thinking);
-    transcript.prepend(exchange);
+    transcript.append(exchange);
+    keepInView();
     const { ok, body } = await post("/api/chat", { message });
     thinking.remove();
     if (!ok) { exchange.append(el("div", { class: "note error", text: "That didn't work; try again." })); return; }
     if (body.reply) exchange.append(el("p", { class: "reply", text: body.reply }));
     if (body.card?.type === "run") runCard(body.card, exchange);
     if (body.card?.type === "create") createCard(body.card, exchange);
+    keepInView();
   });
 
+  box.addEventListener("input", fit);
   box.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
   });
   for (const example of document.querySelectorAll("[data-example]"))
-    example.addEventListener("click", () => { box.value = example.dataset.example; box.focus(); });
+    example.addEventListener("click", () => { box.value = example.dataset.example; fit(); box.focus(); });
 })();

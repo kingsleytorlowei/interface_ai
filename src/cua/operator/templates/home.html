@@ -1,41 +1,38 @@
-{% extends "_layout.html" %}{% set active = "home" %}
+{% extends "_layout.html" %}
 {% block body %}
-<section class="ask column">
+<section class="chat">
   <h1>What do you need done?</h1>
-  <form id="ask">
-    <textarea name="message" id="message" rows="2" aria-label="What do you need done?"
-      placeholder="For example: what's the savings balance for member 45678?"></textarea>
-    <button class="primary">Ask</button>
-  </form>
-  <p class="hint">{% if llm_ready %}Numbers, amounts and emails stay on this computer: the
-    assistant only sees what you're asking for, then you check the details before anything runs.
-    {% else %}No assistant is configured, so requests are matched to saved automations by their
-    words.{% endif %}</p>
-  {% if examples %}<div class="examples">{% for e in examples %}<button type="button" data-example="{{ e }}">{{ e }}</button>{% endfor %}</div>{% endif %}
   <div class="transcript" id="transcript" aria-live="polite"></div>
+  <form id="ask" class="composer">
+    <textarea name="message" id="message" rows="1" aria-label="What do you need done?"
+      placeholder="Ask for something, like the savings balance for member 45678"></textarea>
+    <button class="send" aria-label="Send" disabled>
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+  <p class="composer-hint">Enter to send, Shift+Enter for a new line.{% if llm_ready %} Member numbers and amounts stay on this computer.{% else %} No assistant is configured, so requests are matched to saved automations by their words.{% endif %}</p>
+  {% if examples %}<div class="suggestions" id="suggestions">{% for e in examples %}<button type="button" data-example="{{ e }}">{{ e }}</button>{% endfor %}</div>{% endif %}
 </section>
 
-<h2 id="saved">Saved automations</h2>
-{% include "_notes.html" %}
-<table class="ledger">
-  <thead><tr><th>Automation</th><th>Status</th><th>Gives back</th><th></th></tr></thead>
-  <tbody>
-  {% for r in rows %}
-  <tr>
-    <td><a class="title" href="/automations/{{ r.id }}/{{ r.latest.version }}">{{ r.title }}</a>
-        {% if r.tenants %}<div class="small soft">also at {{ r.tenants | join(", ") }}</div>{% endif %}</td>
-    <td>{% if r.approved %}{% if r.cleared %}<span class="status ok">Ready, runs unattended</span>{% else %}<span class="status plain">Ready, with a person</span>{% endif %}{% endif %}
-        {% if r.review == "ready for review" %}<span class="status warn">Waiting for review</span>
-        {% elif r.review == "rejected" %}<span class="status bad">Rejected</span>
-        {% elif r.review %}<span class="status bad">Check failed</span>{% endif %}</td>
-    <td class="small soft">{{ r.returns }}</td>
-    <td class="act">{% if r.review == "ready for review" %}<a class="button" href="/automations/{{ r.id }}/{{ r.latest.version }}">Review</a>{% endif %}
-        {% if r.approved %}<a class="button" href="/run/{{ r.id }}">Run</a>{% endif %}</td>
-  </tr>
-  {% else %}
-  <tr><td colspan="4" class="soft">Nothing saved yet. Ask for something above, or start a <a href="/new">new automation</a>.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section class="saved" id="saved">
+  <h2>Saved automations</h2>
+  <table class="ledger">
+    {% for r in rows %}
+    <tr>
+      <td><a class="title" href="/automations/{{ r.id }}/{{ r.latest.version }}">{{ r.title }}</a></td>
+      <td>{% if r.review == "ready for review" %}<span class="status warn">Waiting for review</span>
+          {% elif r.review == "rejected" %}<span class="status bad">Rejected</span>
+          {% elif r.review %}<span class="status bad">Check failed</span>
+          {% elif r.cleared %}<span class="status ok">Ready</span>{% else %}<span class="status plain">Ready, with a person</span>{% endif %}</td>
+      <td class="act">{% if r.review == "ready for review" %}<a class="button" href="/automations/{{ r.id }}/{{ r.latest.version }}">Review</a>
+          {% elif r.approved %}<a class="button" href="/run/{{ r.id }}">Run</a>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td class="soft">Nothing saved yet. Ask for something above.</td></tr>
+    {% endfor %}
+  </table>
+  {% include "_notes_inline.html" %}
+  <p class="small soft">Prefer a form? <a href="/new">Describe a new automation</a>.</p>
+</section>
 <script src="/static/chat.js"></script>
 {% endblock %}

@@ -401,6 +401,9 @@ def test_a_route_keeps_only_what_can_be_trusted() -> None:
     unknown = to_route({"action": "run", "automation": "corebank.nope", "reply": ""},
                        [summary()], redacted, values)
     assert unknown.action == "reply"
+    named = to_route({"action": "create", "reply": f"The lookup («{LOOKUP.id}») comes closest.",
+                      "request": "Read a member's certificate"}, [summary()], redacted, values)
+    assert named.reply == "The lookup comes closest."  # staff read titles, not ids
 
 
 def test_matching_by_words_without_the_assistant() -> None:
