@@ -259,3 +259,54 @@ def test_claude_planner_request_shape() -> None:
     # append-only history: the second request extends the first
     assert len(second["messages"]) == 3
     assert second["messages"][2]["content"][0]["tool_use_id"] == "toolu_1"
+
+
+PREPARE_GOAL = Goal.model_validate(
+    yaml.safe_load((GOALS / "corebank.subaccount.prepare.yaml").read_text()))
+PREPARE_FLOW = ["fill_member_id_field", "click_search_button", "click_open_subaccount_link",
+                "select_account_type_select", "fill_initial_deposit_field",
+                "click_continue_button",
+                "extract_account_type", "extract_initial_deposit"]
+
+
+def test_discovered_subaccount_flow_stops_before_the_commit(open_session: OpenSession) -> None:
+    def act(verb: str, ref: tuple[Any, ...], name: str, **args: str) -> tuple[str, dict[str, Any]]:
+        return (verb, {"ref": ref, "target_name": name, "intent": name, **args})
+
+    confirm = act("click", ("button", "Confirm"), "confirm_button")
+    planner = ScriptedPlanner([
+        fill(), SEARCH,
+        act("click", ("link", "Open Sub-Account"), "open_subaccount_link"),
+        act("select", ("combobox",), "account_type_select", option="{{inputs.account_type}}"),
+        act("fill", ("textbox", None, 1), "initial_deposit_field",
+            value="{{inputs.initial_deposit}}"),
+        act("click", ("button", "Continue"), "continue_button"),
+        confirm,  # the policy stops this in discovery: irreversible, and nobody approves
+        ("extract", {"ref": ("cell", "Holiday Club"), "output_name": "account_type",
+                     "intent": "Read the account type"}),
+        ("extract", {"ref": ("cell", "$25.00"), "output_name": "initial_deposit",
+                     "intent": "Read the initial deposit"}),
+        ("finish", {"steps": PREPARE_FLOW, "notes": "stops on review", "outcomes": [
+            {"code": "member_not_found", "state": "no_results", "description": "No member"},
+            {"code": "deposit_rejected", "state": "subacct_invalid",
+             "description": "Deposit or account type rejected"}]}),
+    ])
+    session = discovery_session(open_session)  # unattended: approvals are rejected
+    result = discover(PREPARE_GOAL, session, planner)
+
+    refused = planner.received[6]
+    assert refused.is_error and "approval rejected" in refused.content
+    assert result.status == "recorded", result
+    cap = result.capability
+    assert cap is not None and [s.id for s in cap.steps] == PREPARE_FLOW
+    assert cap.success.state == "subacct_review"
+    assert cap.risk is Risk.REVERSIBLE  # nothing irreversible was recorded
+
+    params = {"member_id": "12345", "account_type": "Holiday Club", "initial_deposit": "25.00"}
+    verified = verify(open_session, cap, params)
+    assert isinstance(verified, Success), verified
+    assert verified.outputs == {"account_type": "Holiday Club",
+                                "initial_deposit": Decimal("25.00")}
+    assert verified.committed_steps != []  # reversible steps count; a restart would redo them
+    rejected = verify(open_session, cap, {**params, "initial_deposit": "1.00"})
+    assert rejected.kind == "business_outcome" and rejected.code == "deposit_rejected"

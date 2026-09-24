@@ -1,0 +1,37 @@
+# Discovery goal: the brief's "open a new sub-account for this member and reach the
+# confirmation screen". The flow stops on the review screen, before the irreversible Confirm,
+# so it can be discovered, verified by replay and approved without committing anything; the
+# calling agent (or a person) decides whether to confirm. The outputs are read back from the
+# review screen so the caller can check the core system has what it asked for.
+capability_id: corebank.subaccount.prepare
+goal: >-
+  Open a new sub-account for this member and reach the review (confirmation) screen, then
+  read back the account type and initial deposit shown there. Do not confirm.
+app: corebank
+entry: "{{env.base_url}}/main.html"
+inputs:
+  member_id:
+    type: string
+    description: 5-digit member number
+    sensitivity: pii
+    pattern: '^\d{5}$'
+    example: "12345"
+  account_type:
+    type: string
+    description: Sub-account product
+    enum: [Money Market, Holiday Club, Share Certificate]
+    example: Holiday Club
+  initial_deposit:
+    type: money
+    description: Opening deposit in USD
+    sensitivity: confidential
+    example: "25.00"
+outputs:
+  account_type:
+    type: string
+    description: Account type as shown on the review screen
+  initial_deposit:
+    type: money
+    description: Initial deposit as shown on the review screen
+    sensitivity: confidential
+max_turns: 30
