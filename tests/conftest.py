@@ -96,13 +96,14 @@ def open_session(
 
         def open_(*, variant: str = "pinnacle", mode: Mode = Mode.REPLAY,
                   status: Status | None = Status.APPROVED, control: InMemoryControl | None = None,
-                  sign_on: bool = True) -> GuardedSession:
+                  sign_on: bool = True, audit_targets: bool = False) -> GuardedSession:
             base = bank(variant)
             log = stack.enter_context(RunLog(tmp_path, Redactor()))
             session = stack.enter_context(GuardedSession.open(
                 surface=browser, app=corebank, policy=Policy(corebank_policy, [base]),
                 control=control or InMemoryControl(), log=log, secrets=SECRETS,
                 env={"base_url": base}, mode=mode, capability_status=status,
+                audit_targets=audit_targets,
             ))
             if sign_on:
                 session.sign_on()

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from conftest import CATALOG, load_capability
+from cua.policy import Redactor
 from cua.schema import Capability, Risk, Status
 from cua.store import Store, StoreError
 
@@ -91,3 +92,14 @@ def test_loading_by_status_skips_newer_versions_in_another_status(store: Store) 
     store.save(cap.model_copy(update={"version": "0.1.1"}))
     assert store.load(cap.id).version == "0.1.1"
     assert store.load(cap.id, status=Status.APPROVED).version == "0.1.0"
+
+
+def test_an_artifact_carrying_a_known_sensitive_value_is_not_saved(store: Store) -> None:
+    cap = draft()
+    redactor = Redactor()
+    redactor.register("Jane Q. Sample", "member_name")
+    store.save(cap, sensitive=[redactor])  # clean: saved
+    leaky = cap.model_copy(update={"description": "Look up Jane Q. Sample's balance"})
+    with pytest.raises(StoreError, match="«member_name»"):
+        store.save(leaky.model_copy(update={"version": "0.2.0"}), sensitive=[redactor])
+    assert store.versions(cap.id) == ["0.1.0"]

@@ -16,16 +16,19 @@ inputs:
     sensitivity: pii
     pattern: '^\d{5}$'
     example: "12345"
+    alt_example: "45678"
   account_type:
     type: string
     description: Sub-account product
     enum: [Money Market, Holiday Club, Share Certificate]
     example: Holiday Club
+    alt_example: Money Market
   initial_deposit:
     type: money
     description: Opening deposit in USD
     sensitivity: confidential
     example: "25.00"
+    alt_example: "40.00"
 outputs:
   account_type:
     type: string

@@ -37,6 +37,7 @@ class EventKind(StrEnum):
     INTERVENTION_REQUESTED = "intervention_requested"
     INTERVENTION_RESOLVED = "intervention_resolved"
     SNAPSHOT = "snapshot"
+    TARGET_AUDIT = "target_audit"
 
 
 class Event(BaseModel):

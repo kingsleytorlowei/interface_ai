@@ -5,7 +5,7 @@ semantic, parameterized steps. The only place an LLM is used.
 from .goal import Goal, GoalInput
 from .loop import DiscoveryResult, discover
 from .planner import ClaudePlanner, Planner, ScriptedPlanner
-from .recorder import Recorder, RecordingError
+from .recorder import Recorder, RecordingError, prune_strategies
 
 __all__ = ["ClaudePlanner", "DiscoveryResult", "Goal", "GoalInput", "Planner", "Recorder",
-           "RecordingError", "ScriptedPlanner", "discover"]
+           "RecordingError", "ScriptedPlanner", "discover", "prune_strategies"]

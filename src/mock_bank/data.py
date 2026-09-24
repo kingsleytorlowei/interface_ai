@@ -40,6 +40,9 @@ def seed() -> dict[str, Member]:
         Member("34567", "Maria L. Placeholder", [
             acct("00", "Share Savings", "6610", "12050.00"),
         ], restricted=True),
+        Member("45678", "Samuel P. Testcase", [  # a second happy path, for verification
+            acct("00", "Share Savings", "7702", "318.45"),
+        ]),
     ]
     return {m.member_id: m for m in members}
 

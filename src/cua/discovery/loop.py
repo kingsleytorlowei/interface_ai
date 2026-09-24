@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from cua.apps import classify
+from cua.evidence import snapshot_digest
 from cua.schema import (
     Action,
     AppModel,
@@ -116,6 +117,7 @@ class DiscoveryLoop:
         self.state: str | None = None
         self.usage: Counter[str] = Counter()
         self.turns = 0
+        self._screens_sent: dict[str, str] = {}  # snapshot text -> its digest in the events
 
     def run(self) -> DiscoveryResult:
         log = self.session.log
@@ -137,7 +139,7 @@ class DiscoveryLoop:
                                                self._task(obs)))
         result.turns, result.usage = self.turns, dict(self.usage)
         result.review_notes = self._review_notes(result.capability)
-        log.write_json("transcript.json", self.planner.transcript())
+        log.write_json("transcript.json", self._without_screens(self.planner.transcript()))
         log.emit("discovery_finished", status=result.status, reason=result.reason,
                  turns=result.turns, usage=result.usage)
         return result
@@ -306,7 +308,25 @@ class DiscoveryLoop:
             label = f"{self.state} - {sig.description}"
             if sig.kind is StateKind.INTERSTITIAL and sig.recovery:
                 label += f" [interstitial; replay handles it by: {sig.recovery.kind}]"
+        self._screens_sent[obs.snapshot] = snapshot_digest(obs)
         return f"Screen: {label}\nURL: {obs.url}\n\n{obs.snapshot}"
+
+    def _without_screens(self, transcript: Any) -> Any:
+        """The transcript as evidence: the model's reasoning and calls, but each screen tree
+        it was shown replaced by that observation's digest in the event log. Screens carry
+        whatever data was on them, declared sensitive or not; the model has to see them,
+        the evidence doesn't have to keep them."""
+        match transcript:
+            case str():
+                for snapshot, digest in self._screens_sent.items():
+                    transcript = transcript.replace(
+                        snapshot, f"[screen tree omitted; observation {digest} in events.jsonl]")
+                return transcript
+            case dict():
+                return {k: self._without_screens(v) for k, v in transcript.items()}
+            case list():
+                return [self._without_screens(v) for v in transcript]
+        return transcript
 
     def _review_notes(self, capability: Capability | None) -> list[str]:
         notes = [f"example value for inputs.{n} was typed literally; recorded as a placeholder"

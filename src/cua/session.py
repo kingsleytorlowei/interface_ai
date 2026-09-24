@@ -160,6 +160,7 @@ class GuardedSession:
         capability_status: Status | None = None,
         approval_timeout_s: float = 300,
         intervention_timeout_s: float = 1800,
+        audit_targets: bool = False,
     ) -> None:
         self.app = app
         self.log = log
@@ -178,6 +179,11 @@ class GuardedSession:
         self._irreversible = 0
         self._approvals = 0
         self.interventions: list[Intervention] = []  # every handoff in this session, in order
+        # With `audit_targets`, per target slug: which of its strategies identified the
+        # resolved element on every resolution so far (verification uses this to drop
+        # fallbacks that don't generalise).
+        self._audit_targets = audit_targets
+        self.target_audits: dict[str, list[bool]] = {}
         self._frozen: str | None = None
         self._last_digest: str | None = None
         self.signed_on = False
@@ -340,7 +346,20 @@ class GuardedSession:
                           detail=e.detail, attempts=e.attempts)
             self.capture("resolve-failed", cmd.step_id)
             raise TargetError(e) from e
+        slug = getattr(cmd.action, "target", None)
+        if self._audit_targets and isinstance(cmd.target, Target) and slug:
+            self._audit(slug, target, resolved, cmd.step_id)
         return resolved, target, self._surface.describe(resolved)
+
+    def _audit(self, slug: str, target: Target, resolved: Resolved, step: str | None) -> None:
+        try:
+            checks = self._surface.audit(target, resolved)
+        except Exception as e:  # evidence for a later decision; never fails the action
+            self.log.emit(EventKind.TARGET_AUDIT, step, target=slug, error=str(e))
+            return
+        before = self.target_audits.get(slug, [True] * len(checks))
+        self.target_audits[slug] = [a and b for a, b in zip(before, checks, strict=True)]
+        self.log.emit(EventKind.TARGET_AUDIT, step, target=slug, strategies=checks)
 
     def _perform(self, action: Action, el: Resolved | None) -> str | None:
         match action:

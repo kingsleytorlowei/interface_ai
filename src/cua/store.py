@@ -11,10 +11,11 @@ version.
 """
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from cua.policy import PolicyConfig
+from cua.policy import PolicyConfig, Redactor
 from cua.schema import AppModel, Capability, Risk, Status, check_against_app
 
 
@@ -80,7 +81,15 @@ class Store:
             raise StoreError(f"{capability_id}@{version} does not fit its app: {errors}")
         return capability
 
-    def save(self, capability: Capability, verification: dict[str, Any] | None = None) -> Path:
+    def save(self, capability: Capability, verification: dict[str, Any] | None = None, *,
+             sensitive: Iterable[Redactor] = ()) -> Path:
+        """Write a capability (and its verification record). `sensitive`: redactors holding
+        the values a run knew to be sensitive; an artifact containing any of them is refused
+        (artifacts are shared across tenants and must never carry data)."""
+        text = capability.model_dump_json(indent=2, exclude_none=True) + "\n"
+        if leaked := sorted({label for r in sensitive for label in r.labels_in(text)}):
+            raise StoreError(f"{capability.id}@{capability.version} contains sensitive "
+                             f"values ({', '.join(leaked)}); not saved")
         path = self._path(capability.id, capability.version)
         if path.exists():
             existing = Capability.model_validate_json(path.read_text())
@@ -88,7 +97,7 @@ class Store:
                 raise StoreError(f"{capability.id}@{capability.version} is approved and "
                                  "immutable; bump the version")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(capability.model_dump_json(indent=2, exclude_none=True) + "\n")
+        path.write_text(text)
         if verification is not None:
             self._path(capability.id, capability.version, ".verification.json").write_text(
                 json.dumps(verification, indent=2, default=str) + "\n")

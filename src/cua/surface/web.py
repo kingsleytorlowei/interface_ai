@@ -441,6 +441,12 @@ class WebSurface:
                 raise ResolutionError("not_found", "no strategy matched", attempts)
             self.page.wait_for_timeout(200)
 
+    def audit(self, target: Target, el: Resolved) -> list[bool]:
+        frame = self._find_frame(target.frame)
+        handle = el.handle.element_handle()
+        return [i == el.strategy_index or self._identifies(frame, s, handle)
+                for i, s in enumerate(target.strategies)]
+
     def describe(self, el: Resolved) -> ElementInfo:
         nodes = parse_snapshot(el.handle.aria_snapshot(mode="ai"))
         attrs = el.handle.evaluate(_ATTRS_JS)

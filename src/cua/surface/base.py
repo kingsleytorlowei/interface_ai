@@ -69,6 +69,11 @@ class Surface(Protocol):
 
     def resolve(self, target: Target, timeout_ms: int = 5000) -> Resolved: ...
 
+    def audit(self, target: Target, el: Resolved) -> list[bool]:
+        """For each of the target's strategies (not just the one that won), whether it alone
+        identifies exactly the resolved element. Used to prove fallbacks generalise."""
+        ...
+
     def describe(self, el: Resolved) -> ElementInfo:
         """What an operator would see of a resolved element (what policy judges it by)."""
 

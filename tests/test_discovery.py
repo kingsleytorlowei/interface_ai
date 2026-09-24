@@ -12,9 +12,16 @@ import httpx
 import pytest
 import yaml
 
-from conftest import OpenSession
+from conftest import OpenSession, load_capability
 from cua.control import InMemoryControl, Resolution
-from cua.discovery import ClaudePlanner, Goal, ScriptedPlanner, discover
+from cua.discovery import (
+    ClaudePlanner,
+    Goal,
+    RecordingError,
+    ScriptedPlanner,
+    discover,
+    prune_strategies,
+)
 from cua.discovery.planner import ToolResult, find_ref
 from cua.policy import Mode
 from cua.replay import replay
@@ -54,11 +61,17 @@ def discovery_session(open_session: OpenSession, **kw: Any):  # type: ignore[no-
     return open_session(mode=Mode.DISCOVERY, status=None, **kw)
 
 
-def verify(open_session: OpenSession, capability, params):  # type: ignore[no-untyped-def]
-    """What the CLI does next: replay the draft, auto-approving only reversible steps."""
+def verify(open_session: OpenSession, capability, params,  # type: ignore[no-untyped-def]
+           audits: list[dict[str, list[bool]]] | None = None):
+    """What the CLI does next: replay the draft, auto-approving only reversible steps (and,
+    given `audits`, checking every strategy of every target it resolves)."""
     control = InMemoryControl(approve=lambda r: r.risk is Risk.REVERSIBLE)
-    session = open_session(status=Status.DRAFT, control=control, sign_on=False)
-    return replay(capability, params, session)
+    session = open_session(status=Status.DRAFT, control=control, sign_on=False,
+                           audit_targets=audits is not None)
+    result = replay(capability, params, session)
+    if audits is not None:
+        audits.append(session.target_audits)
+    return result
 
 
 def test_discovered_lookup_is_recorded_and_replays(open_session: OpenSession) -> None:
@@ -302,11 +315,52 @@ def test_discovered_subaccount_flow_stops_before_the_commit(open_session: OpenSe
     assert cap.success.state == "subacct_review"
     assert cap.risk is Risk.REVERSIBLE  # nothing irreversible was recorded
 
-    params = {"member_id": "12345", "account_type": "Holiday Club", "initial_deposit": "25.00"}
-    verified = verify(open_session, cap, params)
-    assert isinstance(verified, Success), verified
-    assert verified.outputs == {"account_type": "Holiday Club",
-                                "initial_deposit": Decimal("25.00")}
+    # As in the real run: a fallback for Continue anchored on the heading, which holds the
+    # member's name (never declared sensitive, so redaction can't know it). The transcript
+    # evidence keeps no screen trees, so the name isn't there either.
+    assert "Jane Q. Sample" in cap.model_dump_json()
+    transcript = (session.log.dir / "transcript.json").read_text()
+    assert "Jane Q. Sample" not in transcript and "screen tree omitted" in transcript
+
+    # Verification: both example sets, auditing every strategy; then prune.
+    audits: list[dict[str, list[bool]]] = []
+    [first, second] = PREPARE_GOAL.verification_params()
+    assert second["member_id"] == "45678"
+    for params in (first, second):
+        verified = verify(open_session, cap, params, audits)
+        assert isinstance(verified, Success), verified
+    assert verified.outputs == {"account_type": "Money Market",
+                                "initial_deposit": Decimal("40.00")}
     assert verified.committed_steps != []  # reversible steps count; a restart would redo them
+    pruned, notes = prune_strategies(cap, audits)
+    assert "Jane Q. Sample" not in pruned.model_dump_json()
+    assert any(n.startswith("target continue_button: dropped strategy #2") for n in notes)
+    assert all("Jane" not in n for n in notes)
+    assert pruned.targets["continue_button"].strategies == \
+        cap.targets["continue_button"].strategies[:1]
+
+    params = first
     rejected = verify(open_session, cap, {**params, "initial_deposit": "1.00"})
     assert rejected.kind == "business_outcome" and rejected.code == "deposit_rejected"
+
+
+def test_pruning_needs_one_strategy_that_held_in_every_run() -> None:
+    cap = load_capability("corebank.member.lookup_balance")
+    two = next(n for n, t in cap.targets.items() if len(t.strategies) == 2)
+    others = {n: [True] * len(t.strategies) for n, t in cap.targets.items() if n != two}
+    # each run won with a different strategy: neither is proven for both inputs
+    with pytest.raises(RecordingError, match=f"no strategy of target {two}"):
+        prune_strategies(cap, [{**others, two: [True, False]}, {**others, two: [False, True]}])
+    # a target no run resolved is kept, flagged as unproven
+    kept, notes = prune_strategies(cap, [others])
+    assert kept.targets[two] == cap.targets[two]
+    assert notes == [f"target {two} was never resolved during verification; its 2 "
+                     "strategies are unproven"]
+
+
+def test_verification_params_add_an_alternate_set_only_when_declared() -> None:
+    assert PREPARE_GOAL.verification_params()[1] == {
+        "member_id": "45678", "account_type": "Money Market", "initial_deposit": "40.00"}
+    single = LOOKUP_GOAL.model_copy(update={"inputs": {
+        n: s.model_copy(update={"alt_example": None}) for n, s in LOOKUP_GOAL.inputs.items()}})
+    assert single.verification_params() == [{"member_id": "12345"}]

@@ -274,6 +274,13 @@ class Redactor:
             pattern = re.compile(rf"(?<![A-Za-z0-9]){re.escape(value)}(?![A-Za-z0-9])")
             self._values[value] = (pattern, f"«{label}»")
 
+    def labels_in(self, text: str) -> list[str]:
+        """Labels of the sensitive values (and backstop patterns) found in `text`."""
+        found = [label for pattern, label in self._values.values() if pattern.search(text)]
+        found += [f"«{name}»" for name, pattern in _BACKSTOP_PATTERNS.items()
+                  if pattern.search(text)]
+        return sorted(set(found))
+
     def scrub(self, text: str) -> str:
         # Longest first, so a value containing another is replaced whole.
         for value in sorted(self._values, key=len, reverse=True):

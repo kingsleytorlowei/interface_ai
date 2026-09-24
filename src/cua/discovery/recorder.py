@@ -8,6 +8,7 @@ flow works on its own.
 """
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
@@ -157,7 +158,7 @@ class Recorder:
             app=AppRef(app_id=self.app.app_id),
             risk=max((s.risk for s in steps), key=lambda r: r.rank),
             entry=Entry(url=self.goal.entry, requires_session=self.goal.requires_session),
-            inputs={n: InputSpec(**s.model_dump(exclude={"example"}))
+            inputs={n: InputSpec(**s.model_dump(exclude={"example", "alt_example"}))
                     for n, s in self.goal.inputs.items() if n in used_inputs},
             outputs=dict(self.goal.outputs),
             outcomes=outcomes,
@@ -179,3 +180,34 @@ def _templates(action: Action) -> str:
         case Select(option=option):
             return option
     return ""
+
+
+def prune_strategies(capability: Capability, audits: Sequence[Mapping[str, list[bool]]]
+                     ) -> tuple[Capability, list[str]]:
+    """Keep only the strategies that identified their element in every verification run.
+
+    A strategy synthesized from one screen may lean on that screen's data (an anchor like
+    "OPEN SUB-ACCOUNT — <member name>"): it is useless for any other input, and it carries
+    the data into the artifact. Replaying with different inputs and dropping whatever didn't
+    hold removes both. Notes name strategies by position and kind only, never their text.
+    """
+    targets: dict[str, Target] = {}
+    notes: list[str] = []
+    for name, target in capability.targets.items():
+        runs = [audit[name] for audit in audits if name in audit]
+        if not runs:
+            notes.append(f"target {name} was never resolved during verification; its "
+                         f"{len(target.strategies)} strategies are unproven")
+            targets[name] = target
+            continue
+        keep = [all(run[i] for run in runs) for i in range(len(target.strategies))]
+        if not any(keep):
+            raise RecordingError([f"no strategy of target {name} identified its element in "
+                                  "every verification run"])
+        for i, (strategy, kept) in enumerate(zip(target.strategies, keep, strict=True)):
+            if not kept:
+                notes.append(f"target {name}: dropped strategy #{i + 1} ({strategy.by}), "
+                             "which did not identify the element in every verification run")
+        targets[name] = target.model_copy(update={
+            "strategies": [s for s, k in zip(target.strategies, keep, strict=True) if k]})
+    return capability.model_copy(update={"targets": targets}), notes

@@ -11,7 +11,7 @@ import typer
 import yaml
 
 from cua.control import ControlPort, InMemoryControl, OperatorDesk
-from cua.discovery import ClaudePlanner, Goal, discover
+from cua.discovery import ClaudePlanner, Goal, RecordingError, discover, prune_strategies
 from cua.evidence import RunLog
 from cua.operator import serve_console
 from cua.policy import Mode, Policy, Redactor
@@ -63,8 +63,8 @@ def load_dotenv(path: Path = Path(".env")) -> None:
 
 @contextmanager
 def open_session(store: Store, app_id: str, base_url: str, *, mode: Mode,
-                 status: Status | None, control: ControlPort, headed: bool
-                 ) -> Iterator[GuardedSession]:
+                 status: Status | None, control: ControlPort, headed: bool,
+                 audit_targets: bool = False) -> Iterator[GuardedSession]:
     with ExitStack() as stack:
         surface = stack.enter_context(WebSurface.launch(headless=not headed))
         log = stack.enter_context(RunLog(EVIDENCE, Redactor()))
@@ -72,7 +72,7 @@ def open_session(store: Store, app_id: str, base_url: str, *, mode: Mode,
             surface=surface, app=store.app(app_id),
             policy=Policy(store.policy(app_id), [base_url]), control=control, log=log,
             secrets=EnvSecrets(), env={"base_url": base_url}, mode=mode,
-            capability_status=status))
+            capability_status=status, audit_targets=audit_targets))
 
 
 def operator_control(mode: str) -> tuple[ControlPort, bool]:
@@ -123,20 +123,42 @@ def discover_command(
 
     capability = result.capability.model_copy(
         update={"version": store.next_draft_version(result.capability.id)})
-    params = goal.examples()
-    with open_session(store, goal.app, base_url, mode=Mode.REPLAY, status=Status.DRAFT,
-                      control=verification_control(), headed=headed) as session:
-        verification = run_replay(capability, params, session)
-    # The store keeps only what the approval gate needs; the full (redacted) result, with
-    # its outputs, lives in the evidence directory it points to.
+    # Verify by replay, once per example set, auditing every strategy of every target.
+    redactors = [session.log.redactor]
+    runs: list[RunResult] = []
+    audits: list[dict[str, list[bool]]] = []
+    for params in goal.verification_params():
+        with open_session(store, goal.app, base_url, mode=Mode.REPLAY, status=Status.DRAFT,
+                          control=verification_control(), headed=headed,
+                          audit_targets=True) as session:
+            runs.append(run_replay(capability, params, session))
+        redactors.append(session.log.redactor)
+        audits.append(session.target_audits)
+        typer.echo(f"verification {len(runs)}: {runs[-1].kind}; evidence "
+                   f"{runs[-1].evidence_ref}")
+        if runs[-1].kind != "success":
+            break
+    if len(runs) == 1 and runs[0].kind == "success":
+        typer.echo("  review: the goal has no alt_example inputs, so fallback strategies are "
+                   "unproven beyond one input set")
+    kind = next((r.kind for r in runs if r.kind != "success"), "success")
+    if kind == "success":
+        try:
+            capability, notes = prune_strategies(capability, audits)
+        except RecordingError as e:
+            kind, notes = "failure", [str(e)]
+        for note in notes:
+            typer.echo(f"  review: {note}")
+    # The store keeps only what the approval gate needs; the full (redacted) results, with
+    # their outputs, live in the evidence directories they point to. It refuses an artifact
+    # containing any value this run knows to be sensitive.
     with store_errors():
-        path = store.save(capability, {"kind": verification.kind,
-                                       "run_id": verification.run_id,
-                                       "evidence_ref": verification.evidence_ref})
-    typer.echo(f"verification: {verification.kind}; evidence {verification.evidence_ref}")
+        path = store.save(capability, {"kind": kind, "runs": [
+            {"kind": r.kind, "run_id": r.run_id, "evidence_ref": r.evidence_ref}
+            for r in runs]}, sensitive=redactors)
     typer.echo(f"draft saved: {path}")
-    if verification.kind != "success":
-        show(verification)
+    if kind != "success":
+        show(runs[-1])
         raise typer.Exit(1)
 
 

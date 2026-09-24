@@ -10,7 +10,11 @@ from cua.schema.common import DottedId, Model, Slug
 
 
 class GoalInput(InputSpec):
-    example: str  # the value used during discovery (and the verification replay)
+    example: str  # the value used during discovery (and the first verification replay)
+    # A second, different value for a second verification replay: a recorded fallback that
+    # only works for the first example leans on that example's data and is dropped. Inputs
+    # without one reuse `example`.
+    alt_example: str | None = None
 
 
 class Goal(Model):
@@ -31,3 +35,11 @@ class Goal(Model):
 
     def examples(self) -> dict[str, str]:
         return {name: spec.example for name, spec in self.inputs.items()}
+
+    def verification_params(self) -> list[dict[str, str]]:
+        """One replay per example set: the discovery examples, then the alternates if any."""
+        sets = [self.examples()]
+        if any(spec.alt_example for spec in self.inputs.values()):
+            sets.append({name: spec.alt_example or spec.example
+                         for name, spec in self.inputs.items()})
+        return sets
