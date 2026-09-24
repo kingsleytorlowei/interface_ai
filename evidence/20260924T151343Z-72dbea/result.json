@@ -1,0 +1,21 @@
+{
+  "run_id": "20260924T151343Z-72dbea",
+  "capability_id": "corebank.subaccount.prepare",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T15:13:43.891560Z",
+  "finished_at": "2026-09-24T15:13:48.413456Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_search_button",
+    "click_open_subaccount_link",
+    "click_continue_button"
+  ],
+  "evidence_ref": "evidence/20260924T151343Z-72dbea",
+  "kind": "success",
+  "outputs": {
+    "account_type": "Holiday Club",
+    "initial_deposit": "\u00abinputs.initial_deposit\u00bb"
+  }
+}

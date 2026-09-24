@@ -1,0 +1,21 @@
+{
+  "run_id": "20260924T151348Z-a49d63",
+  "capability_id": "corebank.subaccount.prepare",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T15:13:48.718320Z",
+  "finished_at": "2026-09-24T15:13:53.265725Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_search_button",
+    "click_open_subaccount_link",
+    "click_continue_button"
+  ],
+  "evidence_ref": "evidence/20260924T151348Z-a49d63",
+  "kind": "success",
+  "outputs": {
+    "account_type": "Money Market",
+    "initial_deposit": "\u00abinputs.initial_deposit\u00bb"
+  }
+}

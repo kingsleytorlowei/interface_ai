@@ -7,9 +7,10 @@ GuardedSession stack the CLI uses, checks the result against what the scenario i
 show, and regenerates the recorded section of evidence/README.md. Exits 1 if any scenario
 did not produce its expected result.
 
-The lookup artifact is the approved, discovered one in catalog/ when it exists; otherwise the
-hand-written test fixture, labelled as such. The sub-account flow is always the fixture (it
-is never discovered: it is irreversible).
+Each artifact is the approved, discovered one in catalog/ when it exists; otherwise the
+hand-written test fixture, labelled as such. Opening a sub-account (through the irreversible
+Confirm) is always the fixture: discovery stops at the review screen
+(corebank.subaccount.prepare), so the commit is never discovered.
 """
 
 import os
@@ -46,6 +47,7 @@ INDEX = Path("evidence/README.md")
 START, END = "<!-- recorded:start -->", "<!-- recorded:end -->"
 
 LOOKUP = "corebank.member.lookup_balance"
+PREPARE_SUBACCOUNT = "corebank.subaccount.prepare"
 OPEN_SUBACCOUNT = "corebank.subaccount.open"
 
 
@@ -118,6 +120,17 @@ SCENARIOS = [
              lambda r: r.kind == "failure" and r.category == "timeout" and r.retryable,
              "failure/timeout after one retry, retryable (nothing committed)",
              faults={"latency_ms": 12000}),
+    # The discovered multi-step form flow, with inputs discovery never used.
+    Scenario("08a-subaccount-prepare", "Form flow: sub-account prepared up to the review screen",
+             PREPARE_SUBACCOUNT,
+             {"member_id": "45678", "account_type": "Share Certificate", "initial_deposit": "500"},
+             lambda r: r.kind == "success" and not r.recoveries,
+             "success on the review screen, outputs read back, nothing confirmed"),
+    Scenario("08b-subaccount-rejected", "Business outcome: deposit below the minimum",
+             PREPARE_SUBACCOUNT,
+             {"member_id": "12345", "account_type": "Holiday Club", "initial_deposit": "1.00"},
+             lambda r: r.kind == "business_outcome",
+             "business_outcome (the app rejected the deposit)"),
 ]
 
 

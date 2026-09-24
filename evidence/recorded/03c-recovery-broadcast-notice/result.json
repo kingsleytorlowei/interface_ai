@@ -2,8 +2,8 @@
   "run_id": "03c-recovery-broadcast-notice",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T04:07:44.381693Z",
-  "finished_at": "2026-09-24T04:07:46.126964Z",
+  "started_at": "2026-09-24T15:15:04.131259Z",
+  "finished_at": "2026-09-24T15:15:05.872160Z",
   "recoveries": [
     {
       "step_id": "click_search_button",

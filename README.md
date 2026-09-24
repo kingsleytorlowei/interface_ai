@@ -57,8 +57,13 @@ uv run python -m mock_bank --variant pinnacle --port 8001
 ```
 
 **2. Discover the flow with the LLM** (needs `ANTHROPIC_API_KEY`; about 30 s and ~$0.10 on
-`claude-opus-5`). Add `--headed` to watch. Discovery records a draft, then replays it once
-without the LLM to verify it.
+`claude-opus-5`). Add `--headed` to watch. Discovery records a draft, then verifies it by
+replaying it without the LLM, once with the goal's example inputs and once with its
+alternates (`alt_example`, member `45678`). Every fallback strategy of every target is
+checked on both runs, and any that didn't find the same element for both members is dropped:
+a fallback anchored on one member's data would fail for the next member, and would put that
+member's data in the artifact. An artifact containing a value the run knows is sensitive is
+not saved.
 
 ```bash
 uv run cua discover goals/corebank.member.lookup_balance.yaml
@@ -66,7 +71,8 @@ uv run cua discover goals/corebank.member.lookup_balance.yaml
 ```
 discovery: recorded (flow recorded) in 5 turns; usage {'input_tokens': 10, 'output_tokens': 1284, 'cache_read_input_tokens': 21472, 'cache_creation_input_tokens': 8576}; evidence evidence/<run_id>
   review: step click_search_button is recorded as reversible; lower it to read_only at review if it only queries
-verification: success; evidence evidence/<run_id>
+verification 1: success; evidence evidence/<run_id>
+verification 2: success; evidence evidence/<run_id>
 draft saved: catalog/corebank/capabilities/corebank.member.lookup_balance@0.1.1.json
 ```
 
@@ -178,6 +184,28 @@ Open the console, enter your name, click **Acknowledge** in the teller window, t
 
 Without `--operator console` the run is unattended: it fails closed and aborts at the alert.
 
+**8. A multi-step form flow.** The second discovered capability is the brief's own example:
+open a sub-account for a member and reach the confirmation screen. It stops on the review
+screen, before the irreversible *Confirm*, and reads back what the core system will create.
+It was discovered with `goals/corebank.subaccount.prepare.yaml`; these inputs are ones
+discovery never used:
+
+```bash
+uv run cua replay corebank.subaccount.prepare \
+  --params '{"member_id": "45678", "account_type": "Share Certificate", "initial_deposit": "500"}'
+```
+```json
+{
+  "committed_steps": ["click_continue_button"],
+  "kind": "success",
+  "outputs": {"account_type": "Share Certificate", "initial_deposit": "500.00"}
+}
+```
+
+`committed_steps` lists *Continue* because it submits a form: nothing is created yet, but a
+restart would submit it again, so the engine treats it as possibly effective. A deposit of
+`"1.00"` gives `business_outcome` / `subaccount_values_rejected`.
+
 ## Running without live services
 
 Nothing except step 2 needs a model key, and nothing needs a network service beyond the
@@ -186,12 +214,13 @@ local mock app.
 - **Tests** (`uv run pytest`) drive discovery with a `ScriptedPlanner` in place of the
   model, so the loop, recorder and verification are tested with no key. Tests that need the
   app run against mock-bank servers the test session starts itself.
-- **Demo steps 4–7** run against the approved artifact checked into
-  `catalog/corebank/capabilities/` (`0.1.0`, from the real discovery run). Skip steps 2–3
-  and they report `"capability_version": "0.1.0"`.
+- **Demo steps 4–8** run against the approved artifacts checked into
+  `catalog/corebank/capabilities/` (both `0.1.0`, from the real discovery runs). Skip steps
+  2–3 and they report `"capability_version": "0.1.0"`.
 - **`uv run python scripts/record_evidence.py`** starts its own mock banks and re-records
   every run that needs neither a model nor a human (happy path, not found, four recoveries,
-  fatal failure, tenant drift, rejected approval, timeout) into `evidence/recorded/`,
+  fatal failure, tenant drift, rejected approval, timeout, the sub-account form flow and its
+  rejected deposit) into `evidence/recorded/`,
   checking each result. It takes about 2 min (the slowness scenarios wait out real timeouts).
 - **The real runs are committed**: both discovery attempts (the first was caught by the
   verification gate), the approval, and the console handoff with screenshots. See the
@@ -242,7 +271,7 @@ sign-on (`recorded/03b`, `07a`).
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 180 tests, about 3 min (real Chromium against the mock bank)
+uv run pytest            # 184 tests, about 3 min (real Chromium against the mock bank)
 uv run lint-imports      # 8 architectural contracts
 uv run ruff check .
 ```

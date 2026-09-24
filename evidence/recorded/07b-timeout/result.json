@@ -2,8 +2,8 @@
   "run_id": "07b-timeout",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T04:08:22.696490Z",
-  "finished_at": "2026-09-24T04:09:11.912566Z",
+  "started_at": "2026-09-24T15:15:42.440383Z",
+  "finished_at": "2026-09-24T15:16:31.661242Z",
   "recoveries": [
     {
       "step_id": "entry",

@@ -1,0 +1,14 @@
+{
+  "scenario": "Business outcome: deposit below the minimum",
+  "expected": "business_outcome (the app rejected the deposit)",
+  "artifact": "corebank.subaccount.prepare@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "account_type",
+    "initial_deposit",
+    "member_id"
+  ]
+}

@@ -2,8 +2,8 @@
   "run_id": "07a-recovery-hung-load",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T04:08:03.478096Z",
-  "finished_at": "2026-09-24T04:08:20.840671Z",
+  "started_at": "2026-09-24T15:15:23.238147Z",
+  "finished_at": "2026-09-24T15:15:40.594620Z",
   "recoveries": [
     {
       "step_id": "entry",

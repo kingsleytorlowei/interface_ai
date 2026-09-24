@@ -1,0 +1,19 @@
+{
+  "run_id": "08a-subaccount-prepare",
+  "capability_id": "corebank.subaccount.prepare",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T15:16:33.502264Z",
+  "finished_at": "2026-09-24T15:16:36.406759Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_continue_button"
+  ],
+  "evidence_ref": "evidence/recorded/08a-subaccount-prepare",
+  "kind": "success",
+  "outputs": {
+    "account_type": "Share Certificate",
+    "initial_deposit": "\u00abinputs.initial_deposit\u00bb"
+  }
+}

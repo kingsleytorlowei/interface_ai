@@ -2,8 +2,8 @@
   "run_id": "05-riverbend-drift",
   "capability_id": "corebank.member.lookup_balance",
   "capability_version": "0.1.0",
-  "started_at": "2026-09-24T04:07:51.071488Z",
-  "finished_at": "2026-09-24T04:07:56.925540Z",
+  "started_at": "2026-09-24T15:15:10.767705Z",
+  "finished_at": "2026-09-24T15:15:16.792272Z",
   "recoveries": [],
   "interventions": [],
   "drift": [

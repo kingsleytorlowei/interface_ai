@@ -1,0 +1,14 @@
+{
+  "scenario": "Form flow: sub-account prepared up to the review screen",
+  "expected": "success on the review screen, outputs read back, nothing confirmed",
+  "artifact": "corebank.subaccount.prepare@0.1.0",
+  "artifact_source": "discovered",
+  "tenant": "pinnacle",
+  "faults": {},
+  "expire_sessions": false,
+  "input_names": [
+    "account_type",
+    "initial_deposit",
+    "member_id"
+  ]
+}

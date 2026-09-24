@@ -1,0 +1,369 @@
+{
+  "schema_version": "1",
+  "id": "corebank.subaccount.prepare",
+  "version": "0.1.0",
+  "status": "approved",
+  "description": "Open a new sub-account for this member and reach the review (confirmation) screen, then read back the account type and initial deposit shown there. Do not confirm.",
+  "app": {
+    "app_id": "corebank",
+    "surface": "web",
+    "compat": "*"
+  },
+  "risk": "reversible",
+  "entry": {
+    "url": "{{env.base_url}}/main.html",
+    "requires_session": true
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "pii",
+      "pattern": "^\\d{5}$"
+    },
+    "account_type": {
+      "type": "string",
+      "description": "Sub-account product",
+      "sensitivity": "internal",
+      "enum": [
+        "Money Market",
+        "Holiday Club",
+        "Share Certificate"
+      ]
+    },
+    "initial_deposit": {
+      "type": "money",
+      "description": "Opening deposit in USD",
+      "sensitivity": "confidential"
+    }
+  },
+  "outputs": {
+    "account_type": {
+      "type": "string",
+      "description": "Account type as shown on the review screen",
+      "sensitivity": "internal"
+    },
+    "initial_deposit": {
+      "type": "money",
+      "description": "Initial deposit as shown on the review screen",
+      "sensitivity": "confidential"
+    }
+  },
+  "outcomes": {
+    "no_such_member": {
+      "description": "Search ran but no member exists with that member number; flow cannot continue.",
+      "when_state": "no_results"
+    },
+    "invalid_member_number": {
+      "description": "App-side validation rejected the member number format (not a valid 5-digit number).",
+      "when_state": "invalid_member_number"
+    },
+    "access_denied": {
+      "description": "Teller lacks permission to view/service this member (restricted account); cannot open a sub-account.",
+      "when_state": "access_denied"
+    },
+    "subaccount_values_rejected": {
+      "description": "The sub-account form rejected the account type / initial deposit values, so the review screen is never reached.",
+      "when_state": "subacct_invalid"
+    }
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"mbrno\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "textbox",
+        "tag": "input"
+      }
+    },
+    "search_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": true
+        },
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "button"
+        }
+      ],
+      "fingerprint": {
+        "role": "button",
+        "name": "Search",
+        "tag": "input"
+      }
+    },
+    "open_subaccount_link": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "link",
+          "name": "Open Sub-Account",
+          "exact": true
+        }
+      ],
+      "fingerprint": {
+        "role": "link",
+        "name": "Open Sub-Account",
+        "tag": "a"
+      }
+    },
+    "account_type_select": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Account Type",
+          "direction": "right",
+          "role": "combobox"
+        },
+        {
+          "by": "css",
+          "selector": "select[name=\"accttype\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "combobox",
+        "tag": "select"
+      }
+    },
+    "initial_deposit_field": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Initial Deposit",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"initdep\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "textbox",
+        "tag": "input"
+      }
+    },
+    "continue_button": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Continue",
+          "exact": true
+        }
+      ],
+      "fingerprint": {
+        "role": "button",
+        "name": "Continue",
+        "tag": "input"
+      }
+    },
+    "account_type": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Account Type",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    },
+    "initial_deposit": {
+      "frame": [
+        {
+          "name": "content"
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Initial Deposit",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "tag": "td"
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "fill_member_id_field",
+      "intent": "Enter the member number to search",
+      "action": {
+        "kind": "fill",
+        "target": "member_id_field",
+        "value": "{{inputs.member_id}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_search",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_search_button",
+      "intent": "Run the member search",
+      "action": {
+        "kind": "click",
+        "target": "search_button"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_open_subaccount_link",
+      "intent": "Open the sub-account entry form",
+      "action": {
+        "kind": "click",
+        "target": "open_subaccount_link"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_form",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "select_account_type_select",
+      "intent": "Choose the sub-account product",
+      "action": {
+        "kind": "select",
+        "target": "account_type_select",
+        "option": "{{inputs.account_type}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_form",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "fill_initial_deposit_field",
+      "intent": "Enter the opening deposit amount",
+      "action": {
+        "kind": "fill",
+        "target": "initial_deposit_field",
+        "value": "{{inputs.initial_deposit}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_form",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_continue_button",
+      "intent": "Submit the form to reach the review screen",
+      "action": {
+        "kind": "click",
+        "target": "continue_button"
+      },
+      "risk": "reversible",
+      "expect": {
+        "state": "subacct_review",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_account_type",
+      "intent": "Read account type from review screen",
+      "action": {
+        "kind": "extract",
+        "target": "account_type",
+        "into": "account_type"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_review",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_initial_deposit",
+      "intent": "Read initial deposit from review screen",
+      "action": {
+        "kind": "extract",
+        "target": "initial_deposit",
+        "into": "initial_deposit"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "subacct_review",
+        "timeout_ms": 10000
+      }
+    }
+  ],
+  "success": {
+    "state": "subacct_review",
+    "outputs_present": [
+      "account_type",
+      "initial_deposit"
+    ]
+  },
+  "provenance": {
+    "run_id": "20260924T151259Z-435f59",
+    "model": "claude-opus-5",
+    "recorded_at": "2026-09-24T15:13:43.550959Z",
+    "reviewed_by": "Kingsley Torlowei"
+  }
+}
