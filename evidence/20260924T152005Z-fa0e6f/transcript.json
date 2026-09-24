@@ -1,0 +1,177 @@
+[
+  {
+    "role": "user",
+    "content": "Goal: Look up a member by member number and read their name and Share Savings balance.\n\nInputs (type the placeholder, not the example value):\n- {{inputs.member_id}}: 5-digit member number (example for this run: \u00abinputs.member_id\u00bb)\n\nOutputs to extract:\n- member_name (string): The member's full name\n- share_savings_balance (money): Balance of the member's Share Savings account\nScreen: member_search - Member inquiry search form\nURL: http://127.0.0.1:8001/main.html\n\n[screen tree omitted; observation 7c87cd57cf606571 in events.jsonl]"
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "citations": null,
+        "text": "I'll fill in the member ID and search.",
+        "type": "text"
+      },
+      {
+        "id": "toolu_01T63MuSKKYz3n1MtAwMy2EA",
+        "input": {
+          "ref": "f8e12",
+          "target_name": "member_id_field",
+          "value": "{{inputs.member_id}}",
+          "intent": "Enter the member number to look up"
+        },
+        "name": "fill",
+        "type": "tool_use",
+        "caller": {
+          "type": "direct"
+        },
+        "toolset_name": null
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01T63MuSKKYz3n1MtAwMy2EA",
+        "content": "Done. Recorded as step `fill_member_id_field` (risk: read_only).\n\nScreen: member_search - Member inquiry search form\nURL: http://127.0.0.1:8001/main.html\n\n[screen tree omitted; observation 29eb71209ca4a337 in events.jsonl]",
+        "is_error": false
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "id": "toolu_01BuY3WhuKfQjKJT9Cybz4Dj",
+        "input": {
+          "ref": "f8e14",
+          "target_name": "search_button",
+          "intent": "Run the member search"
+        },
+        "name": "click",
+        "type": "tool_use",
+        "caller": {
+          "type": "direct"
+        },
+        "toolset_name": null
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01BuY3WhuKfQjKJT9Cybz4Dj",
+        "content": "Done. Recorded as step `click_search_button` (risk: reversible).\n\nScreen: member_detail - Member summary with accounts table\nURL: http://127.0.0.1:8001/main.html\n\n[screen tree omitted; observation f835bb46fecae1d5 in events.jsonl]",
+        "is_error": false
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "id": "toolu_01GtZbQ1BWK6noWM39tPiwWh",
+        "input": {
+          "ref": "f8e10",
+          "output_name": "member_name",
+          "intent": "Read the member's full name"
+        },
+        "name": "extract",
+        "type": "tool_use",
+        "caller": {
+          "type": "direct"
+        },
+        "toolset_name": null
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01GtZbQ1BWK6noWM39tPiwWh",
+        "content": "Done. Recorded as step `extract_member_name` (risk: read_only). Read: '\u00abmember_name\u00bb'.\n\nScreen: member_detail - Member summary with accounts table\nURL: http://127.0.0.1:8001/main.html\n\n[screen tree omitted; observation f835bb46fecae1d5 in events.jsonl]",
+        "is_error": false
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "id": "toolu_01TeAj72oNjGpwymvsE2aoVb",
+        "input": {
+          "ref": "f8e25",
+          "output_name": "share_savings_balance",
+          "intent": "Read the Share Savings account balance"
+        },
+        "name": "extract",
+        "type": "tool_use",
+        "caller": {
+          "type": "direct"
+        },
+        "toolset_name": null
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01TeAj72oNjGpwymvsE2aoVb",
+        "content": "Done. Recorded as step `extract_share_savings_balance` (risk: read_only). Read: '\u00abshare_savings_balance\u00bb'.\n\nScreen: member_detail - Member summary with accounts table\nURL: http://127.0.0.1:8001/main.html\n\n[screen tree omitted; observation f835bb46fecae1d5 in events.jsonl]",
+        "is_error": false
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "citations": null,
+        "text": "Both outputs captured.",
+        "type": "text"
+      },
+      {
+        "id": "toolu_01AfwQgmjscxCNoSYPueGLkP",
+        "input": {
+          "steps": [
+            "fill_member_id_field",
+            "click_search_button",
+            "extract_member_name",
+            "extract_share_savings_balance"
+          ],
+          "outcomes": [
+            {
+              "code": "no_results",
+              "state": "no_results",
+              "description": "Search ran but no member exists with the given member number."
+            },
+            {
+              "code": "invalid_member_number",
+              "state": "invalid_member_number",
+              "description": "The member number failed app-side validation (e.g. not 5 digits)."
+            },
+            {
+              "code": "access_denied",
+              "state": "access_denied",
+              "description": "Teller lacks permission to view this (restricted) member."
+            }
+          ],
+          "notes": "Flow runs entirely in the content iframe of main.html. Enter the member number in the Member ID field on the Member Inquiry form and click Search; the Member Summary screen shows Name and an accounts table. Share Savings is the row with description \"Share Savings\" (suffix 00); its Balance cell is the value extracted. Note the accounts table row order/count can vary by member, so the Share Savings row should be matched by description rather than fixed position. Interstitials that may appear: member_alert (requires a human \u2014 call request_help), system_notice, service_unavailable, session_expired, signed_out."
+        },
+        "name": "finish",
+        "type": "tool_use",
+        "caller": {
+          "type": "direct"
+        },
+        "toolset_name": null
+      }
+    ]
+  }
+]
