@@ -408,6 +408,10 @@ def test_matching_by_words_without_the_assistant() -> None:
     assert (route.action, route.automation, route.inputs) == ("run", LOOKUP.id,
                                                               {"member_id": "45678"})
     assert KeywordRouter()("hello there", [summary()]).action == "reply"
+    # one shared word is enough when only one automation has it (README "Start here" step 4)
+    other = {**summary(), "id": "corebank.other", "title": "Open a sub-account"}
+    route = KeywordRouter()("look up member 23456", [summary(), other])
+    assert (route.automation, route.inputs) == (LOOKUP.id, {"member_id": "23456"})
 
 
 class RecordingClient:

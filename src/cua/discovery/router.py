@@ -168,7 +168,10 @@ class KeywordRouter:
         asked = _words(redacted)
         scored = sorted(((len(asked & _words(f"{a['title']} {a['description']}")), a)
                          for a in automations), key=lambda pair: -pair[0])
-        if not scored or scored[0][0] < 2:
+        # two shared words, or one that points to a single automation
+        clear = scored and (scored[0][0] >= 2 or (scored[0][0] == 1 and (
+            len(scored) == 1 or scored[1][0] == 0)))
+        if not clear:
             return Route(action="reply", reply=(
                 "I couldn't match that to a saved automation. Pick one below; describing a "
                 "new one needs the assistant (an API key)."))
