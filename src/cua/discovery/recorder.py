@@ -11,6 +11,7 @@ import re
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import TypeGuard
 
 from cua.schema import (
     Action,
@@ -169,7 +170,7 @@ class Recorder:
             provenance=Provenance(run_id=run_id, model=model, recorded_at=datetime.now(UTC)),
         )
 
-    def _is_screen(self, state: str | None) -> bool:
+    def _is_screen(self, state: str | None) -> TypeGuard[str]:
         return state is not None and self.app.states[state].kind is StateKind.SCREEN
 
 

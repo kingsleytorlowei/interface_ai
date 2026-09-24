@@ -71,7 +71,8 @@ class Store:
         return f"{major}.{minor}.{patch + 1}"
 
     def _status(self, capability_id: str, version: str) -> str | None:
-        return json.loads(self._path(capability_id, version).read_text()).get("status")
+        status = json.loads(self._path(capability_id, version).read_text()).get("status")
+        return status if isinstance(status, str) else None
 
     def load(self, capability_id: str, version: str | None = None, *,
              status: Status | None = None, tenant: str | None = None) -> Capability:

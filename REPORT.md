@@ -16,7 +16,7 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 | Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus a tenant overlay: all 4 lookup targets and 2 of 8 form targets replaced |
 | Replay | no LLM; 4 × 10 unattended replays (2 capabilities × 2 tenants) all `stable`, no drift; p50 2.8 s (lookup), 4.5 s (form), including sign-on |
-| Tests | 216 (real Chromium against the mock bank), 9 import-linter contracts |
+| Tests | 216 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
 
 ## 1. Architecture
 

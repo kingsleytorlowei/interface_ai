@@ -342,6 +342,7 @@ sign-on (`recorded/03b`, `07a`).
 ```bash
 uv run pytest            # 216 tests, about 4 min (real Chromium against the mock bank)
 uv run lint-imports      # 9 architectural contracts
+uv run mypy              # strict, with the pydantic plugin (src/ and scripts/)
 uv run ruff check .
 ```
 

@@ -32,7 +32,7 @@ from cua.control import InMemoryControl
 from cua.evidence import RunLog
 from cua.policy import Mode, Policy, Redactor
 from cua.replay import replay
-from cua.schema import Capability, RunResult, Status
+from cua.schema import Aborted, BusinessOutcome, Capability, Failure, RunResult, Status
 from cua.secrets import EnvSecrets
 from cua.session import GuardedSession
 from cua.store import Store, StoreError
@@ -168,7 +168,8 @@ def load_source(capability_id: str, tenant: str | None = None) -> Source:
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        port: int = s.getsockname()[1]
+        return port
 
 
 @contextmanager
@@ -228,10 +229,15 @@ def record(scenario: Scenario, source: Source, base: str, surface: WebSurface) -
 
 
 def summary(result: RunResult) -> str:
-    detail = {"success": lambda: "",
-              "business_outcome": lambda: result.code,
-              "failure": lambda: f"{result.category} at `{result.step_id}`",
-              "aborted": lambda: f"at `{result.step_id}`"}[result.kind]()
+    match result:
+        case Failure(category=category, step_id=step_id):
+            detail = f"{category} at `{step_id}`"
+        case Aborted(step_id=step_id):
+            detail = f"at `{step_id}`"
+        case BusinessOutcome(code=code):
+            detail = code
+        case _:
+            detail = ""
     parts = [f"`{result.kind}`" + (f" {detail}" if detail else "")]
     if result.recoveries:
         parts.append("recoveries: " + ", ".join(

@@ -22,8 +22,10 @@ cua = "cua.cli:app"
 dev = [
     "httpx>=0.28.1",
     "import-linter>=2.1",
- "pytest>=8",
- "ruff>=0.7",
+    "mypy>=1.13",
+    "pytest>=8",
+    "ruff>=0.7",
+    "types-pyyaml>=6.0",
 ]
 
 [build-system]
@@ -42,6 +44,11 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/cua/surface/web.py" = ["E501"]  # embedded in-page JavaScript
+
+[tool.mypy]
+files = ["src", "scripts"]
+strict = true
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

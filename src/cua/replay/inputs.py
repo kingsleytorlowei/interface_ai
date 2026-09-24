@@ -78,7 +78,7 @@ def _coerce(spec: InputSpec, raw: Any) -> InputValue:
             if isinstance(raw, bool):
                 return raw
             if raw in ("true", "false"):
-                return raw == "true"
+                return str(raw) == "true"
             raise ValueError("expected a boolean")
         case ParamType.DATE:
             if isinstance(raw, date):

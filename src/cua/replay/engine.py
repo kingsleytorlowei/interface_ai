@@ -73,7 +73,7 @@ TIMEOUT_BACKOFF_S = 1.0
 class _Stop(Exception):
     """Ends the run with a terminal result."""
 
-    def __init__(self, kind: type[RunResult], **fields: Any) -> None:  # type: ignore[valid-type]
+    def __init__(self, kind: type[RunResult], **fields: Any) -> None:
         self.kind = kind
         self.fields = fields
 
@@ -367,8 +367,8 @@ class Replayer:
                      observed=observed, message=message,
                      retryable=not self._committed and category in TRANSIENT)
 
-    def _result(self, kind: type[RunResult], **fields: Any) -> RunResult:  # type: ignore[valid-type]
-        return kind(  # type: ignore[no-any-return]
+    def _result(self, kind: type[RunResult], **fields: Any) -> RunResult:
+        return kind(
             run_id=self.session.run_id,
             capability_id=self.cap.id,
             capability_version=self.cap.version,

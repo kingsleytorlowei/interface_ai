@@ -17,7 +17,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from cua.apps import predicate_holds
@@ -335,7 +335,8 @@ class GuardedSession:
             if isinstance(cmd.target, Ref):
                 # Act through the synthesized Target, not the ref: whatever discovery records
                 # has then already resolved once on the live surface.
-                purpose = "extract" if isinstance(cmd.action, Extract) else "act"
+                purpose: Literal["act", "extract"] = (
+                    "extract" if isinstance(cmd.action, Extract) else "act")
                 pinned = self._surface.pin(cmd.target.ref)
                 target = self._surface.synthesize_target(pinned, purpose)
             else:
