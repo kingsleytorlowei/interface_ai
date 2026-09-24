@@ -15,16 +15,15 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 | Drafts stopped before approval | 2 of 5, both caught by verification or review: a mis-mapped outcome, and a member's name inside a fallback locator |
 | Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus a tenant overlay: all 4 lookup targets and 2 of 8 form targets replaced |
-| Replay stability | 4 × 10 unattended replays (2 capabilities × 2 tenants): all `stable`, no drift; p50 2.8 s (lookup), 4.5 s (form) |
-| Replay | no LLM; a few seconds per run including sign-on |
+| Replay | no LLM; 4 × 10 unattended replays (2 capabilities × 2 tenants) all `stable`, no drift; p50 2.8 s (lookup), 4.5 s (form), including sign-on |
 | Tests | 216 (real Chromium against the mock bank), 9 import-linter contracts |
 
 ## 1. Architecture
 
 ```
-   goal ─► discovery (LLM loop + recorder) ─► draft ─► verification replay ×2 ─► approval
-                         │                                      │                   │
-                         ▼                                      ▼                   ▼
+   goal ─► discovery (LLM loop + recorder) ─► draft ─► verification ×2 ─► approval ─► stability ×10
+                         │                                      │                  │   (clears unattended use)
+                         ▼                                      ▼                  ▼
          GuardedSession: policy.check → lease.check → surface.act → evidence  ◄── replay ◄─ agent
                          │                 │
                       surface          control ◄──► operator console
@@ -33,9 +32,9 @@ names, no ids, results rendered at a POST), with two tenant variants and injecta
 Two drivers, **discovery** and **replay**, sit on one chokepoint, `GuardedSession`: every
 action, whoever issues it, passes the policy, the control lease and the evidence log before it
 reaches the surface. The drivers never import each other; the artifact schema is all they
-share. Import-linter enforces the boundaries (only the session touches the surface; replay
-cannot import an LLM client; the schema and policy are pure; the engine never imports the
-target app), so they hold as the code changes.
+share. Nine import-linter contracts enforce the boundaries (only the session touches the
+surface; replay cannot import an LLM client; the schema, policy and clearance check are
+pure; the engine never imports the target app), so they hold as the code changes.
 
 Key decisions:
 
@@ -152,7 +151,6 @@ tenant (`05`) resolves the member field through its CSS fallback (a drift signal
 fails explicitly at `search_button`, because Riverbend labels it "Find". A tenant overlay
 (§4) is what makes it pass (`05b`).
 
-
 ## 4. Heterogeneity & multi-tenant
 
 **The surface seam.** Everything above `cua.surface` speaks `Target`s and `Observation`s; an
@@ -187,21 +185,17 @@ each owned and reviewed separately:
    included (Riverbend's "Find" button is not a "Search" button with one more strategy), and
    is pinned to an exact base version, so a new base doesn't silently inherit it.
 
-At run time `--tenant riverbend` loads the approved base, applies that tenant's approved
-overlay and runs the result as `0.1.0+riverbend` (SemVer build metadata), so every result and
-evidence directory names what ran; a tenant with no overlay runs the base as recorded. The
-replay engine didn't change. A draft overlay is never skipped: running the base where an
-overlay exists would act on the wrong elements, so it's an error until someone approves it.
-The tenant's origin stays runtime configuration with its base URL (§6).
+`--tenant riverbend` applies that tenant's approved overlay to the approved base and runs it
+as `0.1.0+riverbend` (SemVer build metadata), so every result names what ran; a tenant with
+no overlay runs the base. The replay engine didn't change. A draft overlay is an error, never
+skipped: running the base where an overlay exists would act on the wrong elements.
 
-What Riverbend needed: four overrides for the lookup (the member field, which had only
-resolved through its CSS fallback; "Find"; "Member Name:"; the "Current Bal." column) and two
-of eight for the sub-account flow (the same search screen; its form and review screens match).
-I wrote both overlays by hand from the drift evidence (`05`); each then went through the same
-gate as a discovered draft: `cua verify-overlay` replays base + overlay on Riverbend with two
-members, audits every strategy of the overridden targets and drops any that didn't hold, and
-approval is refused without that. Both base artifacts are unchanged. Recorded runs `05b` and
-`05c` pass with no drift.
+Riverbend needed four overrides for the lookup (the member field, which had only resolved
+through its CSS fallback; "Find"; "Member Name:"; "Current Bal.") and two of eight for the
+sub-account flow, whose form and review screens match. I wrote both by hand from the drift
+evidence (`05`); each went through the same gate as a discovered draft (`cua verify-overlay`
+replays it on Riverbend with two members and drops strategies that didn't hold both times;
+approval needs that). The base artifacts are unchanged, and `05b`/`05c` pass with no drift.
 
 **Managing drift.** Every replay reports which targets fell back to a lower-ranked strategy,
 so per-tenant drift is visible before anything fails. In production, a `target_not_found` on
@@ -265,29 +259,25 @@ chose approval over blocking because banks need these actions done; at this matu
 should happen unattended. Discovery stops before commits by design: the sub-account flow ends
 on the review screen and the policy refused *Confirm* when a scripted model tried it.
 
-**Unattended use is measured, not granted.** Approval is a person's judgement of what a
-capability does; whether it may run with nobody watching is a separate question about how
-reliably it does it. `cua stability` replays an approved capability ten times unattended,
-cycling through two input sets, and writes a report next to it: a verdict (`stable`,
-`drifting`, `flaky`, `broken`), success rate, whether identical inputs always gave the same
-result, runs that needed a fallback strategy, runs with recoveries, and durations. Its summary
-is re-derived from the runs on load, so a report can't claim more than its runs show.
-Unattended `replay` checks it before opening a browser, against the app's thresholds in
-`policy.json`: at least 10 runs, every one successful, none drifting, measured within 30
-days. Anything short of that exits 2 with the reason; `--operator console` still runs on
-approval alone, because a person can step in. Recoveries are reported but not held against
-the score, since they are the app misbehaving and the engine coping as designed. The report
-is keyed by the exact version that runs, so a new base version or a tenant's overlay
-(`0.1.0+riverbend`) starts uncleared. Capabilities with irreversible steps are never measured
-or cleared: each of those runs needs a person anyway, and measuring would repeat real commits.
-This is a run-level check before the session exists, not a policy rule: the per-action policy
-has no notion of whether anyone is watching.
+**Unattended use is measured, not granted.** Approval judges what a capability does; running
+with nobody watching also depends on how reliably it does it. `cua stability` replays an
+approved capability ten times unattended over two input sets and saves a report beside it:
+a verdict (`stable`, `drifting`, `flaky`, `broken`), success rate, whether identical inputs
+always agreed, drift, recoveries and durations. The summary is re-derived from the runs on
+load, so a report can't claim more than its runs show. Unattended `replay` requires the
+app's thresholds (`policy.json`: 10 runs, all successful, none drifting, within 30 days) and
+otherwise exits 2 with the reason; `--operator console` runs on approval alone, since a
+person can step in. Recoveries are reported but not scored: they are the app misbehaving and
+the engine coping. Reports are keyed by the exact version, so a new base or overlay starts
+uncleared; irreversible capabilities are never measured or cleared, since every run needs a
+person and measuring would repeat commits. It is a run-level check made before the session
+exists, not a policy rule, because the per-action policy doesn't know whether anyone is
+watching.
 
-All four combinations (two capabilities, two tenants) measured `stable`, 10/10 with no drift.
-That says little, since the mock is deterministic; the tests are what show the gate refusing
-flaky, broken, drifting, short and stale measurements. In production the score would come
-from a rolling window of real replays rather than a batch, and the first drift signal or
-unexpected failure would remove clearance.
+All four capability × tenant combinations measured 10/10 with no drift, which says little
+about a deterministic mock; the tests show the gate refusing flaky, broken, drifting, short
+and stale reports. In production the score would come from a rolling window of real replays,
+with clearance removed at the first drift or unexpected failure.
 
 **Secrets and data.** Credentials are `env:` references resolved at the last moment and never
 reach the model, artifacts or logs; password fields are masked in screenshots. Redaction is
@@ -324,10 +314,11 @@ Deliberately left out:
 - **LLM limits**: a turn budget per discovery, but no cost or rate limits and no run-level
   deadline; one provider behind the `Planner` protocol.
 - **On-screen data detection**: undeclared data in snapshots (§6).
-- **Stretch goals**: two, as the brief suggests: cross-tenant reuse with per-variant
-  overrides (§4), and confidence & approval (the draft → approved gate, plus a measured
-  stability score that clears approved capabilities for unattended replay, §6). The score
-  is a batch measurement, not a rolling window over real runs.
+
+Stretch goals, two as the brief suggests: cross-tenant reuse with per-variant overrides (§4),
+and confidence & approval: the draft → approved gate plus a measured stability score that
+clears approved capabilities for unattended replay (§6), as a batch rather than a rolling
+window over real runs.
 
 Next, in order: drift-triggered, scoped discovery that drafts overlays; exposing approved
 capabilities as a typed tool catalog for agents; entity detection on screens before snapshots
