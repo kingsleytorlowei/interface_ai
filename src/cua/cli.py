@@ -236,9 +236,29 @@ def console(
         if not sep or not name or not url:
             raise usage_error(f"--tenant takes NAME=URL, not {item!r}")
         tenants[name] = url
-    config = WorkbenchConfig(Store(CATALOG), EVIDENCE, base_url, tenants, headed=not headless)
+    notes = CATALOG / "corebank" / "environment.md"
+    config = WorkbenchConfig(Store(CATALOG), EVIDENCE, base_url, tenants, headed=not headless,
+                             notes=notes.read_text() if notes.exists() else None)
+    for name, url in [("default", base_url), *tenants.items()]:
+        if not reachable(url):
+            typer.echo(f"warning: nothing answers at {url} ({name} tenant); start the target "
+                       "app, or runs there will fail", err=True)
     typer.echo(f"operator workbench: http://127.0.0.1:{port}")
     uvicorn.run(create_workbench(config), host="127.0.0.1", port=port, log_level="warning")
+
+
+def reachable(url: str, timeout_s: float = 2.0) -> bool:
+    """Whether anything answers HTTP at `url` (any status counts: it's there)."""
+    import urllib.error
+    import urllib.request
+
+    try:
+        urllib.request.urlopen(url, timeout=timeout_s).close()  # noqa: S310 (a local URL)
+    except urllib.error.HTTPError:
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+    return True
 
 
 if __name__ == "__main__":

@@ -1,0 +1,18 @@
+{
+  "kind": "success",
+  "runs": [
+    {
+      "kind": "success",
+      "run_id": "20260924T184618Z-82c1ab",
+      "evidence_ref": "evidence/20260924T184618Z-82c1ab"
+    },
+    {
+      "kind": "success",
+      "run_id": "20260924T184622Z-bfba43",
+      "evidence_ref": "evidence/20260924T184622Z-bfba43"
+    }
+  ],
+  "review_notes": [
+    "step click_search_button is recorded as reversible; lower it to read_only at review if it only queries"
+  ]
+}

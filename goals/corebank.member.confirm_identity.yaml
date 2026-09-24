@@ -1,0 +1,28 @@
+# Discovery goal: what a human asks for. The typed contract (inputs, outputs) is decided
+# here; the model finds where it lives in the UI. Its draft is committed unapproved, so the
+# review screen has something to review without an API key.
+capability_id: corebank.member.confirm_identity
+title: Confirm a member's identity
+goal: >-
+  Before discussing an account, confirm who we are talking to: find the member by the member
+  number they give and read back the name and member number shown on their record.
+app: corebank
+entry: "{{env.base_url}}/main.html"
+inputs:
+  member_id:
+    type: string
+    description: 5-digit member number
+    sensitivity: pii
+    pattern: '^\d{5}$'
+    example: "12345"
+    alt_example: "45678"
+outputs:
+  member_name:
+    type: string
+    description: The member's full name as shown on their record
+    sensitivity: pii
+  member_number:
+    type: string
+    description: The member number shown on their record
+    sensitivity: pii
+max_turns: 25

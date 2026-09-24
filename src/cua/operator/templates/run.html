@@ -4,6 +4,7 @@
 <h1>{{ cap.description }}</h1>
 <p class="meta">version {{ cap.version }}{% if tenant %} · at {{ tenant }}{% endif %} ·
   <a href="/automations/{{ cap.id }}/{{ cap.version.split('+')[0] }}">see the steps</a></p>
+{% include "_notes.html" %}
 <form method="post" action="/run/{{ cap.id }}" class="card">
   <input type="hidden" name="tenant" value="{{ tenant or '' }}">
   {% set prefix = "in_" %}

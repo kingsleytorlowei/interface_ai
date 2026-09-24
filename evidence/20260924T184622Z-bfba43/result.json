@@ -1,0 +1,19 @@
+{
+  "run_id": "20260924T184622Z-bfba43",
+  "capability_id": "corebank.member.confirm_identity",
+  "capability_version": "0.1.0",
+  "started_at": "2026-09-24T18:46:22.035373Z",
+  "finished_at": "2026-09-24T18:46:25.040837Z",
+  "recoveries": [],
+  "interventions": [],
+  "drift": [],
+  "committed_steps": [
+    "click_search_button"
+  ],
+  "evidence_ref": "evidence/20260924T184622Z-bfba43",
+  "kind": "success",
+  "outputs": {
+    "member_name": "\u00abmember_name\u00bb",
+    "member_number": "\u00abinputs.member_id\u00bb"
+  }
+}

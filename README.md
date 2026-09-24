@@ -1,43 +1,17 @@
 # Computer-Use Automation System
 
 An LLM discovers a workflow in a legacy UI **once**; the result is recorded as a typed,
-versioned **capability artifact**; after a human approves it, the artifact is **replayed
+versioned **capability artifact**; after a person approves it, it is **replayed
 deterministically, without an LLM**, with typed inputs and outputs, explicit error handling,
-guardrails on every action, and a handoff to a human on the live session when a screen needs
-a person.
+guardrails on every action, and a handoff to a person on the live session when a screen
+needs one.
 
-Bank staff work in the **operator workbench** (`cua console`): they describe an automation
-in plain English, check what it needs and gives back, watch it being found, review it as
-steps in their own words, approve it, and run it from a form. The command line is for
-engineers and scripted runs.
+Bank staff work in the **operator workbench**: describe an automation in plain English, check
+what it needs and gives back, watch it being found, review it as steps in their own words,
+approve it and run it from a form. The command line is for engineers and scripted runs.
 
-Design write-up: [REPORT.md](REPORT.md) · Runs and screenshots: [evidence/](evidence/) ·
-Workbench tour: [evidence/workbench/](evidence/workbench/)
-
-## Modules
-
-Two drivers (discovery, replay) sit on one guarded chokepoint (`GuardedSession`) and never
-depend on each other; the only thing they share is the artifact schema. The boundaries are
-enforced by import-linter contracts (see [Tests & contracts](#tests--contracts)).
-
-| Module | Job |
-|---|---|
-| `cua.schema` | Pure data contracts: capability artifact, tenant overlay, targets, steps, state signatures, observations, run results. No I/O. |
-| `cua.surface` | The perception/action port (`observe`, `resolve`, `act`) and its Playwright + Chromium web adapter. |
-| `cua.policy` | Guardrails: origin, path and action-kind allowlists, action risk classes, Allow / Deny / RequireApproval, redaction. |
-| `cua.control` | Control of a live session: the lease (who holds it), approval and intervention requests, resume/abort. |
-| `cua.session` | `GuardedSession`: the single chokepoint every action flows through (policy → lease → surface → evidence). |
-| `cua.evidence` | Run directories, redacted JSONL event log, failure snapshots. |
-| `cua.secrets` | Resolves `env:NAME` credential references at the last moment; values never reach artifacts or logs. |
-| `cua.apps` | Per-app knowledge shared across capabilities: the state library (error pages, interstitials, notices). |
-| `cua.store` | Artifacts under `catalog/`: versions, tenant overlays, stability reports, and the draft → verified → approved gate. |
-| `cua.stability` | Clearance for unattended replay: an approved capability's stability report against the app's thresholds. Pure. |
-| `cua.discovery` | The LLM observe → decide → act loop and the recorder that turns actions into parameterized steps. The only place an LLM is used. |
-| `cua.replay` | Deterministic step execution, state classification, recovery, and the typed result. Never uses an LLM. |
-| `cua.workflows` | The actions (discover and verify, approve, replay, measure stability, verify an overlay), shared by both front ends. |
-| `cua.operator` | The operator workbench (web, for bank staff) and the per-run console over `cua.control`: approvals, handoffs, pause, take over. |
-| `cua.cli` | Command line for engineers: `cua console` (the workbench), `discover`, `approve`, `replay`, `verify-overlay`, `stability`. |
-| `mock_bank` | The target: a deliberately legacy mock core-banking app with two tenant variants. |
+Design write-up: [REPORT.md](REPORT.md) · Evidence: [evidence/](evidence/README.md) ·
+Workbench screenshots: [evidence/workbench/](evidence/workbench/)
 
 ## Setup
 
@@ -49,8 +23,29 @@ uv run playwright install chromium     # browser for the web surface
 cp .env.example .env                   # then set ANTHROPIC_API_KEY (discovery only)
 ```
 
-`.env` also holds the mock app's teller credentials (`COREBANK_USER`, `COREBANK_PASSWORD`),
-which the engine resolves at run time. `.env` is git-ignored.
+`.env` also holds the mock app's teller credentials, resolved at run time; it is git-ignored.
+Only discovering new automations needs the key: reviewing, approving, running, and the
+command-line demo from step 4 on work without it.
+
+## Start here (10 minutes, no API key needed)
+
+```bash
+uv run python scripts/demo.py     # both mock banks and the workbench; opens your browser
+```
+
+1. **Review a draft.** Under *Automations*, open **Confirm a member's identity**: a real
+   discovery left waiting for you. Read its steps and what each one saw, tick the search step
+   as "only looks things up", and **Approve** it (or **Reject** it with a reason).
+2. **Run it.** On its page, **Run** with member `12345`. A teller window opens (that's the
+   automation's live session); the result comes back in plain words.
+3. **Be the person in the loop.** Run *Look up a member…* with `23456`. It stops at a member
+   alert and appears under **Needs you**: click **Acknowledge** in the teller window, then
+   **Hand back (resume)**, and the run finishes.
+4. **Read [REPORT.md](REPORT.md)** for the design and trade-offs. With a key in `.env`,
+   **New automation** turns a sentence into a new draft (about a minute and $0.10).
+
+No time to run it? [evidence/workbench/](evidence/workbench/) has every screen, from a real
+run.
 
 ## The operator workbench
 
@@ -59,131 +54,74 @@ uv run python -m mock_bank --variant pinnacle --port 8001     # the target app, 
 uv run cua console                                            # http://127.0.0.1:8765
 ```
 
-Add `--tenant riverbend=http://127.0.0.1:8002` to run automations at the second institution.
-The automation's browser window opens on screen, because a handoff happens in it.
-
 | Screen | What a person does there |
 |---|---|
-| **New automation** | Describes the work in their own words. Claude proposes what it needs and gives back (types, sensitivity, format rules) and asks about anything it had to guess; the person corrects it and gives two example values per input. Text that looks like member data is refused before it's sent. **Find how to do it** runs discovery with its progress narrated ("Filled the text box right of "Member ID""), then both checking replays. |
-| **Automations** | Everything that exists: approved, waiting for review, rejected; cleared for unattended use or not; other institutions. |
-| **Review** | A draft as numbered steps: what each does, where (in words, never locators), what it can change, and a screenshot after it from the checks. The endings it handles, reviewer notes, **Approve** (ticking search steps as read-only) or **Reject** with a reason. Approved automations show their stability per institution and a **Measure stability** form. |
-| **Run** | A form built from the inputs. The result says what happened and what to do next: *"Done: \*\*\*\*4417"*, *"No member exists with that number"*, *"The application didn't respond in time at "Run the member search". Nothing was changed; safe to try again."* |
-| **Needs you** | Approvals and handoffs from runs started here: a person is at the workbench, so a run that needs one comes to them instead of failing closed. |
+| **New automation** | Describes the work in their own words. Claude proposes what it needs and gives back and asks about what it had to guess; the person corrects it and gives two example values per input. Discovery then runs with its steps narrated, and both checking replays follow. |
+| **Automations** | Sees what exists: approved, waiting for review, rejected; cleared to run unattended or not. |
+| **Review** | Reads a draft as numbered steps (what, where in words, what it can change, a screenshot after each), then **Approves** it or **Rejects** it with a reason. Approved ones show stability per institution and can be measured. |
+| **Run** | Fills a form built from the inputs; the result says what happened and what to do next. |
+| **Needs you** | Answers approvals and handoffs from runs started here. |
 
-One run at a time (the process drives one browser). [`scripts/workbench_tour.py`](scripts/workbench_tour.py)
-drives every screen with Playwright and the real model and saved the screenshots in
-[evidence/workbench/](evidence/workbench/).
+Add `--tenant riverbend=http://127.0.0.1:8002` for the second institution. The automation's
+browser window opens on screen, because a handoff happens in it. One job runs at a time.
+[`scripts/workbench_tour.py`](scripts/workbench_tour.py) drives every screen with the real
+model; its screenshots are in [evidence/workbench/](evidence/workbench/).
 
 ## Demo path (command line)
 
-Run each command from the repo root. Replay prints a JSON `RunResult`; the listings below
-are trimmed to the fields that matter. Every run also writes a redacted evidence directory
-under `evidence/<run_id>/`.
+Each replay prints a JSON `RunResult` (trimmed below) and writes a redacted evidence
+directory under `evidence/<run_id>/`. The exit code mirrors the result: `0` success,
+`1` failure, `3` business outcome, `4` aborted, `2` usage error (including "not cleared for
+unattended replay").
 
-**1. Start the target app** (keep it running in its own terminal).
+**1. Start the target app**: `uv run python -m mock_bank --variant pinnacle --port 8001`.
 
-```bash
-uv run python -m mock_bank --variant pinnacle --port 8001
-```
-
-**2. Discover the flow with the LLM** (needs `ANTHROPIC_API_KEY`; about 30 s and ~$0.10 on
-`claude-opus-5`). Add `--headed` to watch. Discovery records a draft, then verifies it by
-replaying it without the LLM, once with the goal's example inputs and once with its
-alternates (`alt_example`, member `45678`). Every fallback strategy of every target is
-checked on both runs, and any that didn't find the same element for both members is dropped:
-a fallback anchored on one member's data would fail for the next member, and would put that
-member's data in the artifact. An artifact containing a value the run knows is sensitive is
-not saved.
+**2. Discover with the LLM** (needs the key; ~30 s, ~$0.10). Discovery records a draft,
+verifies it by replaying it without the LLM with two members, and drops any fallback that
+didn't hold for both.
 
 ```bash
 uv run cua discover goals/corebank.member.lookup_balance.yaml
 ```
 ```
-discovery: recorded (flow recorded) in 5 turns; usage {'input_tokens': 10, 'output_tokens': 1284, 'cache_read_input_tokens': 21472, 'cache_creation_input_tokens': 8576}; evidence evidence/<run_id>
+discovery: recorded (flow recorded) in 5 turns; usage {...}; evidence evidence/<run_id>
   review: step click_search_button is recorded as reversible; lower it to read_only at review if it only queries
 verification 1: success; evidence evidence/<run_id>
 verification 2: success; evidence evidence/<run_id>
 draft saved: catalog/corebank/capabilities/corebank.member.lookup_balance@0.1.1.json
 ```
 
-The repo already holds an approved `0.1.0` from the committed real run, so a new draft
-gets the next version (`0.1.1`). Model turns vary from run to run.
-
-**3. Approve the draft.** A person signs off, and lowers the search click to read-only
-(discovery can't tell a query from a change, so it records clicks as reversible). Approval
-is refused unless the verification replay succeeded.
+**3. Approve, then measure stability.** A person signs off (lowering the search click to
+read-only); running with nobody watching also needs ten clean unattended runs. Without the
+key, skip steps 2–3: the approved `0.1.0` and its stability report are already committed.
 
 ```bash
 uv run cua approve corebank.member.lookup_balance 0.1.1 --reviewer "Your Name" \
   --read-only click_search_button
-```
-```
-approved corebank.member.lookup_balance@0.1.1 (risk read_only) by Your Name
-```
-
-Approved means a person agrees with *what* it does. Running with nobody watching also needs
-evidence of *how reliably* it does it: replay it ten times unattended, cycling through two
-members. The report is saved next to the artifact and checked against the thresholds in
-`catalog/corebank/policy.json` (`unattended`: 10 runs, all successful, no drift, measured
-within 30 days).
-
-```bash
 uv run cua stability corebank.member.lookup_balance \
   --params '{"member_id": "12345"}' --params '{"member_id": "45678"}'
 ```
 ```
-run 1/10: success
-...
-stable: 100% success over 10 runs, 0 with drift, 0 with recoveries, p50 2.82s; saved catalog/corebank/capabilities/corebank.member.lookup_balance@0.1.1.stability.json
+stable: 100% success over 10 runs, 0 with drift, 0 with recoveries, p50 2.82s; saved ...
 cleared for unattended replay
 ```
 
-Skip this and step 4 stops before opening a browser (exit 2): `not cleared for unattended
-replay: no stability report for corebank.member.lookup_balance@0.1.1; run cua stability`.
-With `--operator console`, where a person can step in, approval alone is enough.
-
-**4. Replay with params: happy path.** No LLM from here on. Replay runs the latest
-*approved* version, unattended only once it is cleared; a draft only runs if you name it
-with `--version`, and then only with `--operator console`.
+**4. Replay: happy path.** No LLM from here on.
 
 ```bash
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}'
 ```
 ```json
-{
-  "capability_version": "0.1.1",
-  "recoveries": [], "interventions": [], "drift": [], "committed_steps": [],
-  "kind": "success",
-  "outputs": {"member_name": "Jane Q. Sample", "share_savings_balance": "4210.37"}
-}
+{"capability_version": "0.1.1", "drift": [], "committed_steps": [], "kind": "success",
+ "outputs": {"member_name": "Jane Q. Sample", "share_savings_balance": "4210.37"}}
 ```
 
-`share_savings_balance` is typed `money`: parsed from `$4,210.37` into a decimal.
+**5. A business outcome** is a result, not an error (exit 3): `--params '{"member_id":
+"99999"}'` gives `business_outcome` / `no_results`. `"34567"` gives `access_denied`; `"12a"`
+is `failure` / `invalid_input`, rejected before the browser is touched.
 
-The JSON result is the contract; the exit code mirrors its `kind` for shell callers:
-`0` success, `1` failure, `3` business outcome, `4` aborted, `2` usage error (bad params,
-unknown capability or version, missing key, not cleared for unattended replay).
-
-**5. A business outcome.** An unknown member is a result the caller handles, not an error
-(exit code 3).
-
-```bash
-uv run cua replay corebank.member.lookup_balance --params '{"member_id": "99999"}'
-```
-```json
-{
-  "kind": "business_outcome",
-  "code": "no_results",
-  "message": "Search ran but no member exists with the given member number; no name or balance can be returned."
-}
-```
-
-Also try `"34567"` (`access_denied`) or `"12a"` (`failure` / `invalid_input`, rejected
-before the browser is touched).
-
-**6. Recovery from an injected fault.** Make the next search show a dismissable system
-notice, then replay: the engine recognises the screen from the app's state library, clicks
-through it, and carries on.
+**6. Recovery from an injected fault.** Make the next search show a notice; the engine
+recognises it from the app's state library, clicks through and carries on.
 
 ```bash
 curl -X PUT localhost:8001/__admin/faults -H 'content-type: application/json' \
@@ -191,217 +129,110 @@ curl -X PUT localhost:8001/__admin/faults -H 'content-type: application/json' \
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}'
 ```
 ```json
-{
-  "recoveries": [
-    {"step_id": "click_search_button", "state": "system_notice", "recovery": "click", "attempt": 1}
-  ],
-  "kind": "success"
-}
+{"recoveries": [{"step_id": "click_search_button", "state": "system_notice", "recovery": "click", "attempt": 1}],
+ "kind": "success"}
 ```
 
-`{"fatal_errors": 1}` instead gives `failure` / `app_error` with a screenshot in the
-evidence. Recovery from a transient 503, an expired session and a hung page load, and a
-clean `timeout` failure when the app stays slow, are recorded in
-[evidence/recorded/](evidence/README.md) (see [Injected faults](#injected-faults) for why
-those can't be triggered from here).
+The other recoveries (503, expired session, hung load) and a clean `timeout` are recorded in
+[evidence/recorded/](evidence/README.md); a 503 or stall injected here is consumed by the page
+that loads right after sign-on, so the recorder injects them after it.
 
-**7. Escalation and handoff to a human.** Member 23456 has a MEMBER ALERT that a person must
-read. The run pauses on the live session and asks an operator.
+**7. Handoff to a person.** Member 23456 has a MEMBER ALERT that a person must read.
 
 ```bash
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "23456"}' \
   --operator console
 ```
-```
-operator console: http://127.0.0.1:8765 (hand-offs happen in the browser window)
-```
 
-Open the console, enter your name, click **Acknowledge** in the teller window, then
-**Hand back (resume)** in the console. The engine takes the session back and finishes:
+Open the console it prints, click **Acknowledge** in the teller window, then **Hand back
+(resume)**. The run finishes with `interventions: [{"operator": ..., "actions": [{"kind":
+"click", "target_description": "button \"Acknowledge\""}], "resolution": "resumed"}]`.
+Unattended, it fails closed and aborts at the alert.
 
-```json
-{
-  "recoveries": [
-    {"step_id": "click_search_button", "state": "member_alert", "recovery": "escalate", "attempt": 1}
-  ],
-  "interventions": [{
-    "operator": "kingsley",
-    "actions": [{"kind": "click", "target_description": "button \"Acknowledge\""}],
-    "resolution": "resumed"
-  }],
-  "kind": "success",
-  "outputs": {"member_name": "Robert T. Example", "share_savings_balance": "815.00"}
-}
-```
-
-Without `--operator console` the run is unattended: it fails closed and aborts at the alert.
-
-**8. A multi-step form flow.** The second discovered capability is the brief's own example:
-open a sub-account for a member and reach the confirmation screen. It stops on the review
-screen, before the irreversible *Confirm*, and reads back what the core system will create.
-It was discovered with `goals/corebank.subaccount.prepare.yaml`; these inputs are ones
-discovery never used:
+**8. A form flow**: open a sub-account and stop on the review screen, before the
+irreversible *Confirm*, with inputs discovery never used.
 
 ```bash
 uv run cua replay corebank.subaccount.prepare \
   --params '{"member_id": "45678", "account_type": "Share Certificate", "initial_deposit": "500"}'
 ```
 ```json
-{
-  "committed_steps": ["click_continue_button"],
-  "kind": "success",
-  "outputs": {"account_type": "Share Certificate", "initial_deposit": "500.00"}
-}
+{"committed_steps": ["click_continue_button"], "kind": "success",
+ "outputs": {"account_type": "Share Certificate", "initial_deposit": "500.00"}}
 ```
 
-`committed_steps` lists *Continue* because it submits a form: nothing is created yet, but a
-restart would submit it again, so the engine treats it as possibly effective. A deposit of
-`"1.00"` gives `business_outcome` / `subaccount_values_rejected`.
+*Continue* counts as committed: nothing is created yet, but a restart would submit the form
+again. A deposit of `"1.00"` gives `business_outcome` / `subaccount_values_rejected`.
 
-**9. The same capabilities on another tenant.** Riverbend runs the same product with other
-labels ("Member #", "Find", "Member Name:", "Current Bal.") and an extra table column. Start
-it next to Pinnacle:
+**9. Another tenant.** Riverbend runs the same product with other labels. As recorded, the
+lookup fails there explicitly (`target_not_found` at `click_search_button`, with drift
+reported); with `--tenant riverbend` it runs with an approved overlay that replaces only the
+targets that differ.
 
 ```bash
-uv run python -m mock_bank --variant riverbend --port 8002
-```
-
-The Pinnacle-recorded lookup, as recorded, fails there explicitly, reporting the drift it
-saw on the way:
-
-```bash
-uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}' \
-  --base-url http://127.0.0.1:8002
-```
-```json
-{"drift": [{"step_id": "fill_member_id_field", "target": "member_id_field", "strategy_index": 1}],
- "kind": "failure", "category": "target_not_found", "step_id": "click_search_button"}
-```
-
-With `--tenant riverbend`, the same approved base runs with Riverbend's approved overlay,
-which replaces the four targets that differ there and nothing else:
-
-```bash
+uv run python -m mock_bank --variant riverbend --port 8002     # own terminal
 uv run cua replay corebank.member.lookup_balance --params '{"member_id": "12345"}' \
   --base-url http://127.0.0.1:8002 --tenant riverbend
 ```
 ```json
-{"capability_version": "0.1.0+riverbend", "drift": [], "kind": "success",
- "outputs": {"member_name": "Jane Q. Sample", "share_savings_balance": "4210.37"}}
+{"capability_version": "0.1.0+riverbend", "drift": [], "kind": "success", ...}
 ```
 
-The sub-account flow needs only two of its eight targets overridden (the search screen);
-the form and review screens are the same on both tenants. The overlays are in
-`catalog/corebank/tenants/riverbend/`, written by hand from the drift evidence, then verified
-on Riverbend with two members and approved like any draft:
+## Evidence without live services
 
-```bash
-uv run cua verify-overlay corebank.member.lookup_balance --tenant riverbend \
-  --base-url http://127.0.0.1:8002 --params '{"member_id": "12345"}' --params '{"member_id": "45678"}'
-uv run cua approve corebank.member.lookup_balance 0.1.0 --tenant riverbend --reviewer "<you>"
-```
-
-## Running without live services
-
-Nothing except step 2 needs a model key, and nothing needs a network service beyond the
-local mock app.
-
-- **Tests** (`uv run pytest`) drive discovery with a `ScriptedPlanner` in place of the
-  model, so the loop, recorder and verification are tested with no key. Tests that need the
-  app run against mock-bank servers the test session starts itself.
-- **Demo steps 4–9** run against the approved artifacts checked into
-  `catalog/corebank/capabilities/` (both `0.1.0`, from the real discovery runs) and the
-  approved Riverbend overlays in `catalog/corebank/tenants/`, each with a committed
-  stability report that clears it for unattended replay. Skip steps 2–3 and they report
-  `"capability_version": "0.1.0"` (`"0.1.0+riverbend"` in step 9).
-- **`uv run python scripts/record_evidence.py`** starts its own mock banks and re-records
-  every run that needs neither a model nor a human (happy path, not found, four recoveries,
-  fatal failure, tenant drift and both capabilities on the second tenant through overlays,
-  rejected approval, timeout, the sub-account form flow and its rejected deposit) into
-  `evidence/recorded/`,
-  checking each result. It takes about 2 min (the slowness scenarios wait out real timeouts).
-- **The real runs are committed**: both discovery attempts (the first was caught by the
-  verification gate), the approval, and the console handoff with screenshots. See the
+- **Tests** drive discovery with a `ScriptedPlanner` in place of the model and run against
+  mock banks the test session starts itself.
+- **`uv run python scripts/record_evidence.py`** re-records every run that needs neither a
+  model nor a person (14 scenarios: happy path, outcomes, recoveries, failures, tenant drift
+  and overlays, rejected approval, the form flow) into `evidence/recorded/`, checking each.
+- **The real runs are committed**: seven discovery runs (two caught before approval, one left
+  as a draft to review), the handoff, stability measurements and the workbench tour. See the
   [evidence index](evidence/README.md).
 
 ## Target app: CoreOne Teller
 
 `src/mock_bank` is a deliberately legacy mock of a vendor core-banking product: framesets,
-table layouts, labels not tied to inputs, cryptic field names, no test ids. Two tenant
-variants run the same product with different branding, labels, version and table layout
-(`--variant pinnacle` or `riverbend`). Sign on with `teller1` / `demo-only-password` (a fake
-app with a fake credential).
+table layouts, labels not tied to inputs, cryptic field names, no test ids, with two tenant
+variants (`--variant pinnacle` or `riverbend`). Sign on with `teller1` / `demo-only-password`.
 
 | Member | Behaviour |
 |---|---|
-| `12345` | Happy path (Share Savings $4,210.37) |
-| `23456` | MEMBER ALERT interstitial (needs a human) |
-| `34567` | Access denied (restricted account) |
+| `12345`, `45678` | Happy path |
+| `23456` | MEMBER ALERT (needs a person) |
+| `34567` | Access denied |
 | `99999` | Not found |
-| `12a` | Invalid member number |
 
-### Injected faults
-
-A test harness only, outside the agent's allowlist. Each `PUT` replaces the whole fault set:
-
-```bash
-curl -X PUT localhost:8001/__admin/faults -H 'content-type: application/json' \
-  -d '{"broadcast_notices": 1}'
-curl -X POST localhost:8001/__admin/expire-sessions
-curl -X POST localhost:8001/__admin/reset
-```
-
-| Fault | Effect |
-|---|---|
-| `broadcast_notices: N` | next N searches show a dismissable notice |
-| `fatal_errors: N` | next N searches show the application error page |
-| `transient_failures: N` | next N content page loads return 503 |
-| `stalled_loads: N` | next N content page loads hang for `stall_ms` (default 15 s) |
-| `latency_ms: N` | every request is delayed by N ms |
-| `session_ttl_s: N` | sessions expire after N s |
-
-The counters are consumed by the next matching page load. Every `cua replay` signs on
-first, and the page that loads right after sign-on already counts, so a pending 503 or
-stall is spent there, before any step runs. Searches only happen inside the flow, so the
-notice and error faults do work from the command line; the recorder injects the others after
-sign-on (`recorded/03b`, `07a`).
+Faults (a test harness, outside the agent's allowlist; each `PUT /__admin/faults` replaces the
+set): `broadcast_notices`, `fatal_errors`, `transient_failures`, `stalled_loads`, `latency_ms`,
+`session_ttl_s`; plus `POST /__admin/expire-sessions` and `POST /__admin/reset`.
 
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 244 tests, about 4 min (real Chromium against the mock bank)
-uv run lint-imports      # 9 architectural contracts
-uv run mypy              # strict, with the pydantic plugin (src/ and scripts/)
+uv run pytest            # 247 tests, about 4 min (real Chromium against the mock bank)
+uv run lint-imports      # 9 architectural contracts (pyproject.toml)
+uv run mypy              # strict, with the pydantic plugin
 uv run ruff check .
 ```
 
-The contracts, from `pyproject.toml`:
+The contracts: schema, policy and stability clearance are pure; only the session touches the
+surface; replay can't import an LLM client; discovery and replay are independent; the surface,
+control and evidence know nothing about the drivers; the engine never imports the target app.
 
-1. schema is pure: depends on nothing else in cua, no browser/LLM
-2. only the session touches the surface
-3. replay is deterministic: no LLM
-4. discovery and replay are independent drivers
-5. surface knows nothing about drivers, policy or control
-6. policy is pure decisions: no I/O, no surface, no LLM
-7. stability clearance is a pure decision: no I/O, no surface, no drivers
-8. control and evidence know nothing about the surface or drivers
-9. the engine never imports the target app
+## Layout
 
-## Repo layout
-
-```
-catalog/corebank/
-  app.json                  state library: screens, interstitials, fatal pages
-  policy.json               guardrails for this app: allowed paths and action kinds, budgets
-  capabilities/             artifacts (+ verification and stability records), draft or approved
-  tenants/<tenant>/         overlays: a tenant's replacements for named targets of a base
-                            (+ their verification and stability records)
-goals/                      discovery goals: what to find, typed inputs and outputs
-src/cua/                    the engine (modules above); src/cua/operator/templates/ the workbench pages
-src/mock_bank/              the target app
-scripts/record_evidence.py  reproducible evidence runs
-scripts/workbench_tour.py   the workbench, end to end, with screenshots
-evidence/                   committed runs, indexed in evidence/README.md
-tests/                      pytest suite; tests/fixtures/ holds hand-written artifacts
-REPORT.md                   design decisions and trade-offs
-```
+| Path | What |
+|---|---|
+| `src/cua/schema` | Pure data contracts: capability, overlay, targets, states, results |
+| `src/cua/surface` | Perception and action port, and its Playwright web adapter |
+| `src/cua/session.py` | `GuardedSession`: policy → lease → surface → evidence, for every action |
+| `src/cua/policy.py`, `stability.py` | Guardrails and redaction; clearance for unattended use |
+| `src/cua/control.py` | The lease on a live session; approval and intervention requests |
+| `src/cua/discovery` | The LLM loop, recorder and contract proposal: the only place an LLM is used |
+| `src/cua/replay` | Deterministic execution, classification, recovery, typed results |
+| `src/cua/workflows.py` | The actions both front ends share |
+| `src/cua/operator` | The workbench and the per-run console |
+| `src/cua/store.py`, `evidence.py`, `cli.py` | Catalog, evidence directories, command line |
+| `catalog/corebank/` | State library, policy, capabilities, tenant overlays, verification and stability records |
+| `goals/`, `scripts/`, `evidence/`, `tests/` | Discovery goals, evidence and tour scripts, committed runs, test suite |
+| `src/mock_bank` | The target app |

@@ -68,6 +68,10 @@ the assistant{% if verification.runs | length > 1 %}, with different inputs each
 {% if reviewing %}
 <h2>Your decision</h2>
 <div class="card">
+  <p class="meta">Approving lets people run it; nothing runs unattended until its stability
+  is measured. Ticking "only looks things up" on a step marks it as changing nothing, so it
+  no longer counts as a step that may have taken effect if a run stops after it: tick it only
+  for searches and lookups.</p>
   {% if verification and verification.kind == "success" %}
   <label class="field">Your name</label><input type="text" name="reviewer" value="{{ operator }}" required>
   <p><button class="primary">Approve</button>
@@ -116,6 +120,7 @@ the assistant{% if verification.runs | length > 1 %}, with different inputs each
     {% include "_input.html" %}
   {% endfor %}
   {% endfor %}
+  {% include "_notes.html" %}
   <input type="hidden" name="runs" value="10">
   <p><button>Measure</button></p>
 </form>

@@ -1,0 +1,222 @@
+{
+  "schema_version": "1",
+  "id": "corebank.member.confirm_identity",
+  "version": "0.1.0",
+  "status": "draft",
+  "description": "Confirm a member's identity",
+  "app": {
+    "app_id": "corebank",
+    "surface": "web",
+    "compat": "*"
+  },
+  "risk": "reversible",
+  "entry": {
+    "url": "{{env.base_url}}/main.html",
+    "requires_session": true
+  },
+  "inputs": {
+    "member_id": {
+      "type": "string",
+      "description": "5-digit member number",
+      "sensitivity": "pii",
+      "pattern": "^\\d{5}$",
+      "enum": null
+    }
+  },
+  "outputs": {
+    "member_name": {
+      "type": "string",
+      "description": "The member's full name as shown on their record",
+      "sensitivity": "pii"
+    },
+    "member_number": {
+      "type": "string",
+      "description": "The member number shown on their record",
+      "sensitivity": "pii"
+    }
+  },
+  "outcomes": {
+    "no_such_member": {
+      "description": "Search ran but no member exists with the given member number.",
+      "when_state": "no_results"
+    },
+    "invalid_member_number": {
+      "description": "The member number failed app-side validation (e.g. not 5 digits).",
+      "when_state": "invalid_member_number"
+    },
+    "access_denied": {
+      "description": "Teller lacks permission to view this member's restricted account.",
+      "when_state": "access_denied"
+    }
+  },
+  "targets": {
+    "member_id_field": {
+      "frame": [
+        {
+          "name": "content",
+          "title": null,
+          "url_contains": null
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "textbox"
+        },
+        {
+          "by": "css",
+          "selector": "input[name=\"mbrno\"]"
+        }
+      ],
+      "fingerprint": {
+        "role": "textbox",
+        "name": null,
+        "tag": "input"
+      }
+    },
+    "search_button": {
+      "frame": [
+        {
+          "name": "content",
+          "title": null,
+          "url_contains": null
+        }
+      ],
+      "strategies": [
+        {
+          "by": "role",
+          "role": "button",
+          "name": "Search",
+          "exact": true
+        },
+        {
+          "by": "near",
+          "text": "Member ID",
+          "direction": "right",
+          "role": "button"
+        }
+      ],
+      "fingerprint": {
+        "role": "button",
+        "name": "Search",
+        "tag": "input"
+      }
+    },
+    "member_name": {
+      "frame": [
+        {
+          "name": "content",
+          "title": null,
+          "url_contains": null
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Name:",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "name": null,
+        "tag": "td"
+      }
+    },
+    "member_number": {
+      "frame": [
+        {
+          "name": "content",
+          "title": null,
+          "url_contains": null
+        }
+      ],
+      "strategies": [
+        {
+          "by": "near",
+          "text": "Member No:",
+          "direction": "right",
+          "role": "cell"
+        }
+      ],
+      "fingerprint": {
+        "role": "cell",
+        "name": null,
+        "tag": "td"
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "fill_member_id_field",
+      "intent": "Enter the member number to search",
+      "action": {
+        "kind": "fill",
+        "target": "member_id_field",
+        "value": "{{inputs.member_id}}"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_search",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "click_search_button",
+      "intent": "Run the member search",
+      "action": {
+        "kind": "click",
+        "target": "search_button"
+      },
+      "risk": "reversible",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_member_name",
+      "intent": "Read the member's full name",
+      "action": {
+        "kind": "extract",
+        "target": "member_name",
+        "into": "member_name"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "extract_member_number",
+      "intent": "Read the member number on record",
+      "action": {
+        "kind": "extract",
+        "target": "member_number",
+        "into": "member_number"
+      },
+      "risk": "read_only",
+      "expect": {
+        "state": "member_detail",
+        "timeout_ms": 10000
+      }
+    }
+  ],
+  "success": {
+    "state": "member_detail",
+    "outputs_present": [
+      "member_name",
+      "member_number"
+    ]
+  },
+  "provenance": {
+    "run_id": "20260924T184534Z-aa9d2d",
+    "model": "claude-opus-5",
+    "recorded_at": "2026-09-24T18:46:18.383258Z",
+    "reviewed_by": null
+  }
+}

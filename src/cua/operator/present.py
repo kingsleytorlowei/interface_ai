@@ -118,6 +118,9 @@ def _failure_headline(capability: Capability, r: Failure) -> str:
             return f"Kept running into {_screen(r.observed)} {at} and gave up"
         case FailureCategory.TIMEOUT:
             return f"The application didn't respond in time {at}"
+        case FailureCategory.APP_ERROR if "net::ERR_" in r.message:
+            return (f"Couldn't reach the application {at}: is it running, and at the "
+                    "address the workbench was started with?")
         case FailureCategory.APP_ERROR:
             return f"The application reported an error {at}"
         case FailureCategory.OUTPUT_INVALID:

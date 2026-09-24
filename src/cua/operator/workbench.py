@@ -52,6 +52,10 @@ class WorkbenchConfig:
     tenant_urls: dict[str, str] = field(default_factory=dict)  # tenants with overlays
     headed: bool = True  # handoffs happen in the automation's browser window
     app_id: str = "corebank"  # the application new automations are discovered in
+    # What the people here should know about this environment (e.g. a sandbox's test
+    # members): shown where they type inputs. Plain text, from the catalog; never read by
+    # the engine.
+    notes: str | None = None
     # The LLM parts, replaceable in tests; by default Claude, which needs ANTHROPIC_API_KEY.
     proposer: ContractProposer | None = None
     planner: Callable[[], Planner] | None = None
@@ -166,7 +170,8 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
         pending = sum(i["status"] == "pending" for i in desk.state()["items"])
         return TEMPLATES.TemplateResponse(request, template, {
             "operator": request.cookies.get("operator", ""), "pending": pending,
-            "current_job": jobs.current(), "message": request.query_params.get("msg"),
+            "current_job": jobs.current(), "notes": config.notes,
+            "message": request.query_params.get("msg"),
             "error": request.query_params.get("err"), **context})
 
     def back(url: str, *, msg: str | None = None, err: str | None = None) -> RedirectResponse:

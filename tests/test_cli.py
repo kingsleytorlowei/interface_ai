@@ -208,3 +208,7 @@ def test_irreversible_capabilities_are_never_measured(store: Store,
     result = runner.invoke(cli.app, ["stability", cap.id, "--params", "{}"])
     assert result.exit_code == 2 and "irreversible" in result.output
     assert "capability" not in replayed
+
+
+def test_reachable() -> None:
+    assert not cli.reachable("http://127.0.0.1:1", timeout_s=0.5)

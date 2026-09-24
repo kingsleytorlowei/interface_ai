@@ -351,3 +351,19 @@ def test_a_handoff_is_described_once() -> None:
         interventions=[Intervention(id="i", step_id="search", reason="alert", operator="Alice",
                                     resolution="aborted", requested_at=NOW, resolved_at=NOW)])
     assert present.result(LOOKUP, stopped).details == ["A person stepped in: Alice."]
+
+
+def test_an_unreachable_application_is_named_as_such() -> None:
+    view = present.result(LOOKUP, failure(
+        FailureCategory.APP_ERROR, step_id="sign_on",
+        message="navigate failed: Page.goto: net::ERR_CONNECTION_REFUSED at http://x/login"))
+    assert view.headline.startswith("Couldn't reach the application while signing on")
+
+
+def test_environment_notes_are_shown_where_inputs_are_typed(store: Store,
+                                                            tmp_path: Path) -> None:
+    store.save(LOOKUP)
+    config = WorkbenchConfig(store, tmp_path / "evidence", "http://127.0.0.1:1", headed=False,
+                             notes="Sandbox: 12345 is an ordinary member.")
+    client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))
+    assert "12345 is an ordinary member" in text(client.get(f"/run/{LOOKUP.id}").text)
