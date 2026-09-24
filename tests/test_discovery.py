@@ -96,6 +96,27 @@ def test_discovered_lookup_is_recorded_and_replays(open_session: OpenSession) ->
     assert other.kind == "aborted"  # member alert, and nobody to hand it to
 
 
+
+def test_the_model_is_only_offered_and_allowed_what_the_policy_permits(
+        open_session: OpenSession) -> None:
+    session = discovery_session(open_session)
+    press = ("press", {"ref": ("textbox",), "target_name": "member_id_field", "key": "Enter",
+                       "intent": "Submit the search"})
+    sign_off = ("click", {"ref": ("link", "Sign Off"), "target_name": "sign_off",
+                          "intent": "Sign off"})
+    planner = ScriptedPlanner([fill(), press, sign_off, SEARCH,
+                               extract("member_name", "Jane Q. Sample"),
+                               extract("share_savings_balance", "$4,210.37"), FINISH])
+    result = discover(LOOKUP_GOAL, session, planner)
+
+    assert "press" not in {t["name"] for t in planner.tools}  # corebank policy leaves it out
+    refused_press, refused_link = planner.received[1:3]
+    assert refused_press.is_error and "press actions are not allowed" in refused_press.content
+    assert refused_link.is_error and "/signoff is not in the allowlist" in refused_link.content
+    assert result.status == "recorded" and result.capability is not None
+    assert [s.id for s in result.capability.steps] == FLOW  # refusals never become steps
+
+
 def test_literal_example_values_are_parameterised(open_session: OpenSession) -> None:
     planner = ScriptedPlanner([fill("12345"), SEARCH, extract("member_name", "Jane Q. Sample"),
                                extract("share_savings_balance", "$4,210.37"), FINISH])

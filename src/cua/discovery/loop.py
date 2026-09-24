@@ -132,7 +132,8 @@ class DiscoveryLoop:
         self.state = classify(self.app, obs).state
 
         result = self._loop(self.planner.begin(system_prompt(self.app),
-                                               tool_definitions(self.goal, self.app),
+                                               tool_definitions(self.goal, self.app,
+                                                                self.session.allowed_actions),
                                                self._task(obs)))
         result.turns, result.usage = self.turns, dict(self.usage)
         result.review_notes = self._review_notes(result.capability)

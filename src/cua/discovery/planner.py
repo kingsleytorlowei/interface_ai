@@ -160,8 +160,10 @@ class ScriptedPlanner:
         self._last = ""
         self._n = 0
         self.received: list[ToolResult] = []
+        self.tools: list[dict[str, Any]] = []
 
     def begin(self, system: str, tools: list[dict[str, Any]], task: str) -> Turn:
+        self.tools = tools
         self._last = task
         return self._next()
 

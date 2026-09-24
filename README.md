@@ -18,7 +18,7 @@ enforced by import-linter contracts (see [Tests & contracts](#tests--contracts))
 |---|---|
 | `cua.schema` | Pure data contracts: capability artifact, targets, steps, state signatures, observations, run results. No I/O. |
 | `cua.surface` | The perception/action port (`observe`, `resolve`, `act`) and its Playwright + Chromium web adapter. |
-| `cua.policy` | Guardrails: origin allowlist, action risk classes, Allow / Deny / RequireApproval, redaction. |
+| `cua.policy` | Guardrails: origin, path and action-kind allowlists, action risk classes, Allow / Deny / RequireApproval, redaction. |
 | `cua.control` | Control of a live session: the lease (who holds it), approval and intervention requests, resume/abort. |
 | `cua.session` | `GuardedSession`: the single chokepoint every action flows through (policy → lease → surface → evidence). |
 | `cua.evidence` | Run directories, redacted JSONL event log, failure snapshots. |
@@ -242,7 +242,7 @@ sign-on (`recorded/03b`, `07a`).
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 172 tests, about 3 min (real Chromium against the mock bank)
+uv run pytest            # 180 tests, about 3 min (real Chromium against the mock bank)
 uv run lint-imports      # 8 architectural contracts
 uv run ruff check .
 ```
@@ -263,7 +263,7 @@ The contracts, from `pyproject.toml`:
 ```
 catalog/corebank/
   app.json                  state library: screens, interstitials, fatal pages
-  policy.json               guardrails for this app
+  policy.json               guardrails for this app: allowed paths and action kinds, budgets
   capabilities/             artifacts (+ verification records), draft or approved
 goals/                      discovery goals: what to find, typed inputs and outputs
 src/cua/                    the engine (modules above)

@@ -98,6 +98,8 @@ def test_declared_risk_can_raise_but_never_lower(policy: Policy) -> None:
         ("http://evil.test/inquiry", "not in the allowlist"),
         ("https://bank.test:8001/inquiry", "not in the allowlist"),  # scheme is part of origin
         (f"{BASE}/__admin/reset", "is denied"),
+        (f"{BASE}/signoff", "not in the allowlist"),  # a real screen, but not a permitted one
+        (f"{BASE}/subacctx", "not in the allowlist"),  # prefixes match whole segments
         ("/inquiry", "absolute"),
         ("javascript:alert(1)", "absolute"),
     ],
@@ -107,6 +109,34 @@ def test_navigation_outside_allowlist_is_denied(policy: Policy, url: str, reason
         decision = policy.check(ctx(Navigate(url=url), actor=actor, mode=Mode.DISCOVERY))
         assert isinstance(decision, Deny) and decision.rule == "allowlist"
         assert reason in decision.reason
+
+
+def test_paths_deny_wins_and_none_allows_any() -> None:
+    config = PolicyConfig(app_id="corebank", allowed_paths=["/inquiry", "/"],
+                          denied_paths=["/inquiry/admin"])
+    policy = Policy(config, allowed_origins=[BASE])
+    assert policy.url_violation(f"{BASE}/inquiry/ack") is None
+    assert policy.url_violation(f"{BASE}/anything") is None  # "/" allows every path
+    assert "denied" in (policy.url_violation(f"{BASE}/inquiry/admin/x") or "")
+    open_ = Policy(PolicyConfig(app_id="corebank"), allowed_origins=[BASE])
+    assert open_.url_violation(f"{BASE}/signoff") is None
+
+
+def test_action_kinds_outside_the_allowlist_are_denied(policy: Policy) -> None:
+    assert "press" not in policy.allowed_actions
+    for actor in Actor:  # hard limit, like the url allowlist
+        decision = policy.check(ctx(Press(key="Enter"), TEXTBOX, actor=actor))
+        assert isinstance(decision, Deny) and decision.rule == "action_allowlist"
+
+
+@pytest.mark.parametrize(("field", "value", "error"), [
+    ("allowed_actions", ["click", "drag"], "unknown action kinds"),
+    ("allowed_paths", ["inquiry"], "must start with '/'"),
+    ("denied_paths", ["__admin"], "must start with '/'"),
+])
+def test_policy_config_is_validated(field: str, value: list[str], error: str) -> None:
+    with pytest.raises(ValueError, match=error):
+        PolicyConfig.model_validate({"app_id": "corebank", field: value})
 
 
 def test_link_targets_are_checked_before_clicking(policy: Policy) -> None:

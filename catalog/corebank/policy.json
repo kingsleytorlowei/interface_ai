@@ -1,7 +1,9 @@
 {
   "schema_version": "1",
   "app_id": "corebank",
+  "allowed_paths": ["/login", "/main.html", "/banner", "/nav", "/inquiry", "/subacct"],
   "denied_paths": ["/__admin"],
+  "allowed_actions": ["navigate", "click", "fill", "select", "extract"],
   "irreversible_patterns": [],
   "max_actions": 200,
   "max_irreversible": 1

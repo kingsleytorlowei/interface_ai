@@ -4,6 +4,7 @@ All tools are strict (inputs are guaranteed to match the schema) and the loop al
 call per turn: every action changes the page, so the model must see the result first.
 """
 
+from collections.abc import Collection
 from typing import Any
 
 from cua.schema import AppModel, StateKind
@@ -33,10 +34,15 @@ TARGET_NAME = {
     "description": "Stable snake_case name for this element in the recorded flow, "
                    "e.g. member_id_field. Reuse the same name for the same element.",
 }
+ACTION_TOOLS = {"click", "fill", "select", "press", "extract"}  # tools that are UI actions
 INTENT = {"type": "string", "description": "What this action accomplishes, in a few words"}
 
 
-def tool_definitions(goal: Goal, app: AppModel) -> list[dict[str, Any]]:
+def tool_definitions(goal: Goal, app: AppModel,
+                     allowed_actions: Collection[str]) -> list[dict[str, Any]]:
+    """The model's tools: one per action kind the app's policy allows, plus control tools.
+    Withholding a disallowed kind saves the model a refused attempt; the session still
+    enforces the policy on whatever it is sent."""
     screens = sorted(n for n, s in app.states.items() if s.kind is StateKind.SCREEN)
     tools = [
         _tool("click", "Click an element.",
@@ -77,4 +83,4 @@ def tool_definitions(goal: Goal, app: AppModel) -> list[dict[str, Any]]:
             "extract", "Read an element's text into one of the goal's outputs.",
             {"ref": REF, "output_name": {"type": "string", "enum": sorted(goal.outputs)},
              "intent": INTENT}))
-    return tools
+    return [t for t in tools if t["name"] not in ACTION_TOOLS or t["name"] in allowed_actions]

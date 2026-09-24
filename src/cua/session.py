@@ -192,6 +192,8 @@ class GuardedSession:
             app_id=session.app.app_id,
             capability_status=session.capability_status,
             allowed_origins=sorted(session._policy.allowed_origins),
+            allowed_paths=session._policy.config.allowed_paths,
+            allowed_actions=sorted(session._policy.allowed_actions),
         )
         session._acquire()
         outcome = "error"
@@ -207,6 +209,11 @@ class GuardedSession:
         return self.log.run_id
 
     # perception -------------------------------------------------------------------------
+
+    @property
+    def allowed_actions(self) -> frozenset[str]:
+        """Action kinds the policy permits here (drivers offer nothing else)."""
+        return self._policy.allowed_actions
 
     def observe(self, *, quiet: bool = False) -> Observation:
         """`quiet` logs the observation only if the screen changed (for polling loops)."""

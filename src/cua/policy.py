@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
@@ -52,16 +52,41 @@ DEFAULT_IRREVERSIBLE_PATTERNS = [
 ]
 
 
+# Every action kind the schema defines, e.g. "click".
+ACTION_KINDS: tuple[str, ...] = tuple(
+    cls.model_fields["kind"].default for cls in get_args(get_args(Action)[0]))
+
+
 class PolicyConfig(Model):
     """Per-app guardrails, reviewable next to the app's state library. Allowed origins are
-    per-tenant runtime configuration and are passed to `Policy` directly."""
+    per-tenant runtime configuration (each institution hosts the app somewhere else) and are
+    passed to `Policy` directly; routes and action kinds belong to the app, so they live here.
+    """
 
     schema_version: Literal["1"] = "1"
     app_id: Slug
-    denied_paths: list[str] = []  # path prefixes, e.g. "/__admin"
+    # Path prefixes, matched per segment ("/subacct" allows "/subacct/review", not
+    # "/subacctx"). None allows any path on an allowed origin. Denied paths win.
+    allowed_paths: list[str] | None = None
+    denied_paths: list[str] = []  # plain prefixes, e.g. "/__admin"
+    allowed_actions: list[str] = list(ACTION_KINDS)
     irreversible_patterns: list[str] = []
     max_actions: int = Field(default=200, gt=0)
     max_irreversible: int = Field(default=1, ge=0)
+
+    @field_validator("allowed_paths", "denied_paths")
+    @classmethod
+    def _absolute(cls, paths: list[str] | None) -> list[str] | None:
+        if bad := [p for p in paths or [] if not p.startswith("/")]:
+            raise ValueError(f"paths must start with '/': {bad}")
+        return paths
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def _known_kinds(cls, kinds: list[str]) -> list[str]:
+        if unknown := sorted(set(kinds) - set(ACTION_KINDS)):
+            raise ValueError(f"unknown action kinds {unknown}; known: {list(ACTION_KINDS)}")
+        return kinds
 
     @field_validator("irreversible_patterns")
     @classmethod
@@ -113,6 +138,11 @@ def _highest(*risks: Risk | None) -> Risk:
     return max((r for r in risks if r is not None), key=lambda r: r.rank)
 
 
+def _under(path: str, prefix: str) -> bool:
+    prefix = prefix.rstrip("/")
+    return path == prefix or path.startswith(prefix + "/")
+
+
 def _origin(url: str) -> str:
     parts = urlsplit(url)
     return f"{parts.scheme}://{parts.netloc}".lower()
@@ -138,7 +168,14 @@ class Policy:
             return f"origin {_origin(url)} is not in the allowlist"
         if any(parts.path.startswith(p) for p in self.config.denied_paths):
             return f"path {parts.path} is denied"
+        allowed = self.config.allowed_paths
+        if allowed is not None and not any(_under(parts.path, p) for p in allowed):
+            return f"path {parts.path} is not in the allowlist"
         return None
+
+    @property
+    def allowed_actions(self) -> frozenset[str]:
+        return frozenset(self.config.allowed_actions)
 
     def infer_risk(self, action: Action, element: ElementInfo | None) -> Risk:
         match action:
@@ -161,6 +198,9 @@ class Policy:
             return kind(rule=rule, reason=reason, risk=risk, inferred=inferred)  # type: ignore[return-value]
 
         # Hard limits: no actor, mode or approval gets past these.
+        if ctx.action.kind not in self.allowed_actions:
+            return decide(Deny, "action_allowlist",
+                          f"{ctx.action.kind} actions are not allowed for this app")
         for url in self._destinations(ctx):
             if violation := self.url_violation(url):
                 return decide(Deny, "allowlist", violation)
