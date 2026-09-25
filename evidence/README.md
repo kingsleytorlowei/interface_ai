@@ -1,5 +1,26 @@
 # Evidence
 
+## What the brief asks for
+
+- **A saved artifact:** [`corebank.member.lookup_balance@0.1.0.json`](../catalog/corebank/capabilities/corebank.member.lookup_balance@0.1.0.json),
+  discovered by the model and approved; every recorded replay below also keeps the exact
+  artifact it ran as `capability.json`.
+- **A discovery run's logs:** [20260923T192440Z-4e94fc](20260923T192440Z-4e94fc/): `events.jsonl`
+  (every action and policy decision), `transcript.json` (the model's reasoning and tool calls),
+  `capability.draft.json`; then its checking replay, [20260923T192509Z-abb84b](20260923T192509Z-abb84b/).
+- **A replay run's logs:** [recorded/01-happy-path](recorded/01-happy-path/): `events.jsonl` and
+  the typed `result.json`.
+- **Replays that hit an error or exceptional state:** member not found, a business outcome
+  ([02](recorded/02-business-outcome/)); an injected application error, with a screenshot
+  ([04](recorded/04-fatal-failure/)); an element missing on another tenant
+  ([05](recorded/05-riverbend-drift/)); the app too slow ([07b](recorded/07b-timeout/));
+  recovered faults ([03a–c](recorded/03a-recovery-session-expired/), [07a](recorded/07a-recovery-hung-load/));
+  and a person needed, handled in the live session
+  ([20260923T194339Z-f6c82a](20260923T194339Z-f6c82a/), screenshots in [console/](console/)).
+- **Screenshots of every screen:** [workbench/](workbench/).
+
+## Everything else
+
 One directory per run. Each holds a redacted `events.jsonl` (append-only, one event per line),
 `result.json` (the typed run result), and `snapshots/` (redacted tree + text, and a screenshot)
 wherever the engine stopped, asked for approval, or handed off. In events and results, the
