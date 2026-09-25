@@ -296,6 +296,17 @@ Stretch goals, two as the brief suggests: cross-tenant reuse with per-variant ov
 and confidence & approval, with a measured stability score clearing approved capabilities for
 unattended replay (§6), as a batch rather than a rolling window over real runs.
 
+**In production.** Replay workers run next to the legacy app (a VDI or jump host), one
+session each behind a queue; the workbench sits behind SSO with real roles (requester,
+reviewer, operator) and four-eyes approval, so whoever asks for an automation can't approve
+it, and the handoff window is streamed to the operator. Discovery runs only on a sandbox
+tenant with synthetic members and a zero-retention provider; production only replays.
+Evidence goes to write-once storage under the bank's retention rules. Rollout goes read-only
+automations first (attended), then shadow runs beside a person comparing results, then
+unattended runs for proven automations, with every irreversible step still approved by a
+person; handle time, handoff rate, failure categories and drift per tenant show whether it's
+working.
+
 Next, in order: drift-triggered, scoped discovery that drafts overlays; approved capabilities
 as a typed tool catalog for agents; entity detection on screens before evidence is written;
 sandbox-tenant verification for irreversible flows; stability from a rolling window of real
