@@ -215,7 +215,7 @@ set): `broadcast_notices`, `fatal_errors`, `transient_failures`, `stalled_loads`
 ## Tests & contracts
 
 ```bash
-uv run pytest            # 254 tests, about 4 min (real Chromium against the mock bank)
+uv run pytest            # 255 tests, about 4 min (real Chromium against the mock bank)
 uv run lint-imports      # 9 architectural contracts (pyproject.toml)
 uv run mypy              # strict, with the pydantic plugin
 uv run ruff check .

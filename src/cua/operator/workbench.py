@@ -187,6 +187,12 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
         query = f"?msg={quote(msg)}" if msg else f"?err={quote(err)}" if err else ""
         return RedirectResponse(url + query, status_code=303)
 
+    def remember(response: RedirectResponse, name: str) -> RedirectResponse:
+        """Whoever just signed something is who the workbench calls them from now on."""
+        if name.strip():
+            response.set_cookie("operator", name.strip(), samesite="strict")
+        return response
+
     def page_url(capability_id: str, version: str) -> str:
         return f"/automations/{capability_id}/{version}"
 
@@ -406,8 +412,9 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
                               read_only_steps=[str(s) for s in form.getlist("read_only")])
         except (StoreError, WorkflowError) as e:
             return back(url, err=str(e))
-        return back(url, msg="Approved. It can now be run by a person; measure its stability "
-                             "to let it run unattended.")
+        return remember(back(url, msg="Approved. It can now be run by a person; measure its "
+                                      "stability to let it run unattended."),
+                        str(form.get("reviewer", "")))
 
     @app.post("/automations/{capability_id}/{version}/reject")
     def reject(capability_id: str, version: str, reviewer: str = Form(""),
@@ -419,7 +426,8 @@ def create_workbench(config: WorkbenchConfig, desk: OperatorDesk | None = None,
             store.reject(capability_id, version, reviewer.strip(), reason.strip())
         except StoreError as e:
             return back(url, err=str(e))
-        return back(url, msg="Rejected. Run discovery again to get a new draft.")
+        return remember(back(url, msg="Rejected. Run discovery again to get a new draft."),
+                        reviewer)
 
     @app.post("/automations/{capability_id}/{version}/stability")
     async def stability(request: Request, capability_id: str, version: str) -> Response:

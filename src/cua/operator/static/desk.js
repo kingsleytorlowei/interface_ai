@@ -18,13 +18,28 @@
     return node;
   };
 
-  async function post(url, body) {
+  // Decisions are signed: without a name, the card asks for one right where you are.
+  async function post(url, body, where) {
+    const name = operator() || where?.querySelector(".desk-name")?.value.trim() || "";
+    if (!name) { say(where, "Add your name first: decisions are signed."); return; }
+    if (!operator()) remember(name);
     const response = await fetch(url, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...body, operator: operator() }),
+      body: JSON.stringify({ ...body, operator: name }),
     });
-    if (!response.ok) alert((await response.json()).detail);
+    if (!response.ok) { say(where, (await response.json()).detail); return; }
     refresh();
+  }
+
+  function say(where, text) {
+    const note = el("div", { class: "note error", text });
+    if (where) { where.querySelector(".note.error")?.remove(); where.append(note); }
+    else alert(text);
+  }
+
+  function remember(name) {
+    localStorage.setItem("operator", name);
+    fetch("/operator", { method: "POST", body: new URLSearchParams({ name }) });
   }
 
   function card(item) {
@@ -38,12 +53,16 @@
       box.append(el("p", {}, el("span", { class: `effect ${item.risk}`, text: item.risk }), ` ${item.action}`));
     box.append(el("p", { class: "small soft", text: `run ${item.run_id}, step ${item.step_id || "none"}` }));
     if (pending) {
+      if (!operator())
+        box.append(el("label", { class: "field", for: `name-${item.id}`, text: "Your name" }),
+                   el("input", { type: "text", class: "desk-name", id: `name-${item.id}`,
+                                 autocomplete: "name", style: "margin-bottom:10px" }));
       const actions = el("div", { style: "display:flex; gap:8px; flex-wrap:wrap; align-items:center" });
       if (item.kind === "approval") {
         const yes = el("button", { class: "primary", text: "Approve" });
         const no = el("button", { text: "Reject" });
-        yes.onclick = () => post(`/api/approvals/${item.id}`, { approve: true });
-        no.onclick = () => post(`/api/approvals/${item.id}`, { approve: false });
+        yes.onclick = () => post(`/api/approvals/${item.id}`, { approve: true }, box);
+        no.onclick = () => post(`/api/approvals/${item.id}`, { approve: false }, box);
         actions.append(yes, no);
       } else {
         box.append(el("p", { text: "Work in the automation's teller window, then:" }));
@@ -51,8 +70,8 @@
                                    id: `note-${item.id}`, style: "flex:1; min-width:200px" });
         const resume = el("button", { class: "primary", text: "Hand back (resume)" });
         const abort = el("button", { text: "End run (abort)" });
-        resume.onclick = () => post(`/api/interventions/${item.id}`, { outcome: "resumed", note: note.value });
-        abort.onclick = () => post(`/api/interventions/${item.id}`, { outcome: "aborted", note: note.value });
+        resume.onclick = () => post(`/api/interventions/${item.id}`, { outcome: "resumed", note: note.value }, box);
+        abort.onclick = () => post(`/api/interventions/${item.id}`, { outcome: "aborted", note: note.value }, box);
         actions.append(note, resume, abort);
       }
       box.append(actions);
@@ -65,7 +84,7 @@
 
   async function refresh() {
     const active = document.activeElement;
-    if (active && active.id && active.id.startsWith("note-")) return;  // don't eat typing
+    if (active && active.id && /^(note|name)-/.test(active.id)) return;  // don't eat typing
     const state = await (await fetch("/api/state")).json();
     holder.textContent = state.holder ? `In control: ${state.holder}` + (state.pause_requested ? " (pause requested)" : "") : "";
     items.replaceChildren(...(state.items.length ? state.items.map(card)

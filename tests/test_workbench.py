@@ -486,3 +486,13 @@ def test_screenshots_outside_the_served_evidence_are_left_out(store: Store, clie
     store.save(cap, {"kind": "success", "runs": [
         {"kind": "success", "run_id": "run1", "evidence_ref": str(elsewhere.parent)}]})
     assert client.get(f"/automations/{cap.id}/{cap.version}").status_code == 200
+
+
+def test_whoever_approves_is_remembered(store: Store, tmp_path: Path) -> None:
+    config = WorkbenchConfig(store, tmp_path / "evidence", "http://127.0.0.1:1", headed=False)
+    client = TestClient(create_workbench(config, OperatorDesk(), JobRunner()))  # no name yet
+    cap = verified_draft(store)
+    page = client.post(f"/automations/{cap.id}/{cap.version}/approve",
+                       data={"reviewer": "New Reviewer"}).text
+    assert (client.cookies.get("operator") or "").strip('"') == "New Reviewer"
+    assert ">NR<" in page  # the top bar now shows their initials

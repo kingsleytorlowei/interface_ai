@@ -16,7 +16,7 @@ variants and injectable faults.
 | Discovery stability | lookup attempts 2 and 3 produced structurally identical artifacts |
 | Second tenant | both capabilities pass on Riverbend with unchanged base artifacts plus an overlay (4 of 4 and 2 of 8 targets replaced) |
 | Replay | no LLM; 5 × 10 unattended replays across capabilities and tenants, all `stable`; p50 2.8 s (lookup), 4.5 s (form) |
-| Tests | 254 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
+| Tests | 255 (real Chromium against the mock bank), 9 import-linter contracts, mypy `--strict` clean |
 
 ## 1. Architecture
 
